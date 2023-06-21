@@ -10,6 +10,8 @@ from PIL import Image
 import pytorch_lightning as pl
 from pysolotools.consumers import Solo
 import os
+from pytorch_lightning.loggers import TensorBoardLogger
+
     
 class TennisCourtDataset(torch.utils.data.Dataset):
 
@@ -94,7 +96,7 @@ class LitVGG16(pl.LightningModule):
         x, y = batch
         y_pred = self(x)
         loss = torch.nn.functional.mse_loss(y_pred, y)
-        self.log('train_loss', loss)
+        self.log('train_loss', loss, prog_bar=True)
         return loss
     
     def configure_optimizers(self):
@@ -106,5 +108,6 @@ if __name__ == "__main__":
     dataset = TennisCourtDataset(data_path="/Users/tleyden/Library/Application Support/DefaultCompany/TennisCourt/solo_3")
     train_loader = utils.data.DataLoader(dataset)
     litvgg16 = LitVGG16()
-    trainer = pl.Trainer(max_epochs=1)
+    logger = TensorBoardLogger("logs", name="tennis_court_cnn")
+    trainer = pl.Trainer(max_epochs=1, logger=logger)
     trainer.fit(model=litvgg16, train_dataloaders=train_loader)
