@@ -13,6 +13,8 @@ import os
 import wandb
 from pytorch_lightning.loggers import WandbLogger
 import argparse
+from pytorch_lightning.callbacks import ModelCheckpoint
+
 
     
 class TennisCourtDataset(torch.utils.data.Dataset):
@@ -147,7 +149,7 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "num_epochs", 
-        default=20,
+        default=50,
         nargs='?',
         help="Number of epochs to train for"
     )
@@ -172,9 +174,19 @@ if __name__ == "__main__":
     # Initialize wandb logger
     wandb_logger = WandbLogger(project="tennis_court_cnn")
 
+    # Define a checkpoint callback for saving the model
+    checkpoint_callback = ModelCheckpoint(
+        dirpath='saved_models',
+        filename='model-{epoch:02d}-{train_loss:.4f}',  # Customize the filename as desired
+        save_top_k=1,  # Save the best model based on a validation metric
+        monitor='train_loss',  # Metric to monitor for saving the best model
+        mode='min'  # 'min' or 'max' depending on the monitored metric
+    )
+
     trainer = pl.Trainer(
+        callbacks=[checkpoint_callback],
         max_epochs=num_epochs, 
         logger=wandb_logger, 
-        log_every_n_steps=1    # This is only temporarily needed until we train on more data
+        log_every_n_steps=10    # This is only temporarily needed until we train on more data
     )
     trainer.fit(model=litvgg16, train_dataloaders=train_loader)
