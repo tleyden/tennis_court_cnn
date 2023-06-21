@@ -43,11 +43,14 @@ class TennisCourtDataset(torch.utils.data.Dataset):
         # Load the image
         image = Image.open(os.path.join(self.data_path, capture_img_file_path))
 
+        # Convert the image from RGBA (alpha channel) to RGB
+        image = image.convert('RGB')
+
         # Convert the image to a tensor
         img_tensor = torchvision.transforms.ToTensor()(image)
 
-        # Remove the alpha channel
-        img_tensor = img_tensor[:3]
+        # Resize image to 224x224
+        img_tensor = torchvision.transforms.functional.resize(img_tensor, (224, 224))
 
         # Get a reference to the keypoint annotations
         annotations = capture.annotations
@@ -57,7 +60,10 @@ class TennisCourtDataset(torch.utils.data.Dataset):
             raise Exception("Expected 16 keypoints")
         
         # Extract the x,y,state values into a nested list
-        flattened_keypoints = [(kp.location[0], kp.location[1], kp.state) for kp in keypoints]
+        # flattened_keypoints = [(kp.location[0], kp.location[1], kp.state) for kp in keypoints]
+
+        # Extract the x,y values into a nested list
+        flattened_keypoints = [(kp.location[0], kp.location[1]) for kp in keypoints]
 
         # Flatten the nested list
         flattened_keypoints = [element for sublist in flattened_keypoints for element in sublist]
@@ -75,7 +81,7 @@ class LitVGG16(pl.LightningModule):
         super().__init__()
         
         # Create a VGG16 network
-        self.vgg16 = torch.hub.load('pytorch/vision:v0.6.0', 'vgg16', pretrained=False)
+        self.vgg16 = torch.hub.load('pytorch/vision:v0.6.0', 'vgg16', pretrained=True)
         
         # There are 16 keypoints to detect, each keypoint having 3 atributtes:
         # 1. x coordinate
@@ -84,7 +90,10 @@ class LitVGG16(pl.LightningModule):
         #   exist or is outside of the image's bounds, 1 denotes a joint that is inside 
         #   of the image but cannot be seen because the part of the object it belongs 
         #   to is not visible in the image, and 2 means the joint was present and visible.
-        num_out_features = 16 * 3
+        # num_out_features = 16 * 3
+
+        # Skip the state for now to make it easier, and only use images where all keypoints are visible
+        num_out_features = 16 * 2
 
         # Replace the last layer of the VGG16 network with a linear layer
         self.vgg16.classifier[-1] = torch.nn.Linear(in_features=4096, out_features=num_out_features, bias=True)
