@@ -97,7 +97,7 @@ class LitVGG16(pl.LightningModule):
         num_out_features = 16 * 2
 
         # Replace the last layer of the VGG16 network with a linear layer
-        self.vgg16.classifier[-1] = torch.nn.Linear(in_features=4096, out_features=num_out_features, bias=True)
+        # self.vgg16.classifier[-1] = torch.nn.Linear(in_features=4096, out_features=num_out_features, bias=True)
 
         # # Freeze the weights of all the CNN layers
         # for param in self.vgg16.features.parameters():
@@ -106,6 +106,15 @@ class LitVGG16(pl.LightningModule):
         # # Verify that the weights are frozen
         # for name, param in self.vgg16.named_parameters():
         #     print(name, param.requires_grad)
+
+        # Redefine the classifier to remove the dropout layers, at least while trying to overfit the network
+        self.vgg16.classifier = nn.Sequential(
+            nn.Linear(25088, 4096),
+            nn.ReLU(inplace=True),
+            nn.Linear(4096, 4096),
+            nn.ReLU(inplace=True),
+            nn.Linear(4096, num_out_features)
+        )
 
         print(self.vgg16)
 
