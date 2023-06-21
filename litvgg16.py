@@ -12,6 +12,7 @@ from pysolotools.consumers import Solo
 import os
 import wandb
 from pytorch_lightning.loggers import WandbLogger
+import argparse
 
     
 class TennisCourtDataset(torch.utils.data.Dataset):
@@ -115,7 +116,20 @@ class LitVGG16(pl.LightningModule):
     
     
 if __name__ == "__main__":
-    dataset = TennisCourtDataset(data_path="/Users/tleyden/Library/Application Support/DefaultCompany/TennisCourt/solo_3")
+
+    # Define cli args
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "data_path", 
+        default="/Users/tleyden/Library/Application Support/DefaultCompany/TennisCourt/solo_3",
+        help="Path to the data directory"
+    )
+    
+    # Parse cli args
+    args = parser.parse_args()
+    data_path = args.data_path
+
+    dataset = TennisCourtDataset(data_path=data_path)
     train_loader = utils.data.DataLoader(dataset)
     litvgg16 = LitVGG16()
 
