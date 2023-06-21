@@ -82,7 +82,7 @@ class LitVGG16(pl.LightningModule):
         super().__init__()
         
         # Create a VGG16 network
-        self.vgg16 = torch.hub.load('pytorch/vision:v0.6.0', 'vgg16', pretrained=True)
+        self.vgg16 = torch.hub.load('pytorch/vision:v0.6.0', 'vgg16', pretrained=False)
         
         # There are 16 keypoints to detect, each keypoint having 3 atributtes:
         # 1. x coordinate
@@ -99,13 +99,13 @@ class LitVGG16(pl.LightningModule):
         # Replace the last layer of the VGG16 network with a linear layer
         self.vgg16.classifier[-1] = torch.nn.Linear(in_features=4096, out_features=num_out_features, bias=True)
 
-        # Freeze the weights of all the CNN layers
-        for param in self.vgg16.features.parameters():
-            param.requires_grad = False
+        # # Freeze the weights of all the CNN layers
+        # for param in self.vgg16.features.parameters():
+        #     param.requires_grad = False
 
-        # Verify that the weights are frozen
-        for name, param in self.vgg16.named_parameters():
-            print(name, param.requires_grad)
+        # # Verify that the weights are frozen
+        # for name, param in self.vgg16.named_parameters():
+        #     print(name, param.requires_grad)
 
         print(self.vgg16)
 
@@ -131,7 +131,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "data_path", 
-        default="/Users/tleyden/Library/Application Support/DefaultCompany/TennisCourt/solo_6",
+        default="/Users/tleyden/Library/Application Support/DefaultCompany/TennisCourt/solo_7",
         nargs='?',
         help="Path to the data directory"
     )
