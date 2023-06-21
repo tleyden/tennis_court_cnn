@@ -141,7 +141,15 @@ if __name__ == "__main__":
     data_path = args.data_path
 
     dataset = TennisCourtDataset(data_path=data_path)
-    train_loader = utils.data.DataLoader(dataset)
+
+    # Create the dataloader and specify the batch size
+    train_loader = utils.data.DataLoader(
+        dataset, 
+        batch_size=32, 
+        shuffle=True
+    )
+    
+    # Create the lightning module
     litvgg16 = LitVGG16()
 
     # Initialize wandb logger
