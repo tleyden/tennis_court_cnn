@@ -3,6 +3,7 @@
 
 from typing import Any
 import torch
+from torch import optim, nn, utils, Tensor
 import torchvision.models as models
 import torchvision
 from PIL import Image
@@ -63,9 +64,6 @@ class TennisCourtDataset(torch.utils.data.Dataset):
         
         return img_tensor, keypoints_tensor
 
-if __name__ == "__main__":
-    tcd = TennisCourtDataset(data_path="/Users/tleyden/Library/Application Support/DefaultCompany/TennisCourt/solo_3")
-    tcd[0]
 
 
 class LitVGG16(pl.LightningModule):
@@ -83,6 +81,10 @@ class LitVGG16(pl.LightningModule):
         #   exist or is outside of the image's bounds, 1 denotes a joint that is inside 
         #   of the image but cannot be seen because the part of the object it belongs 
         #   to is not visible in the image, and 2 means the joint was present and visible.
+        num_out_features = 16 * 3
+
+        # Replace the last layer of the VGG16 network with a linear layer
+        self.vgg16.classifier[-1] = torch.nn.Linear(in_features=4096, out_features=num_out_features, bias=True)
 
     def forward(self, x):
         y_pred = self.vgg16(x)
@@ -95,4 +97,14 @@ class LitVGG16(pl.LightningModule):
         self.log('train_loss', loss)
         return loss
     
+    def configure_optimizers(self):
+        optimizer = optim.Adam(self.parameters(), lr=1e-3)
+        return optimizer
     
+    
+if __name__ == "__main__":
+    dataset = TennisCourtDataset(data_path="/Users/tleyden/Library/Application Support/DefaultCompany/TennisCourt/solo_3")
+    train_loader = utils.data.DataLoader(dataset)
+    litvgg16 = LitVGG16()
+    trainer = pl.Trainer(max_epochs=1)
+    trainer.fit(model=litvgg16, train_dataloaders=train_loader)
