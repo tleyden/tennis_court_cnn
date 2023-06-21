@@ -113,5 +113,9 @@ if __name__ == "__main__":
     # Initialize wandb logger
     wandb_logger = WandbLogger(project="tennis_court_cnn")
 
-    trainer = pl.Trainer(max_epochs=2, logger=wandb_logger)
+    trainer = pl.Trainer(
+        max_epochs=2, 
+        logger=wandb_logger, 
+        log_every_n_steps=1    # This is only temporarily needed until we train on more data
+    )
     trainer.fit(model=litvgg16, train_dataloaders=train_loader)
