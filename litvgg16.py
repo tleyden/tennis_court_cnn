@@ -10,7 +10,8 @@ from PIL import Image
 import pytorch_lightning as pl
 from pysolotools.consumers import Solo
 import os
-from pytorch_lightning.loggers import TensorBoardLogger
+import wandb
+from pytorch_lightning.loggers import WandbLogger
 
     
 class TennisCourtDataset(torch.utils.data.Dataset):
@@ -108,6 +109,9 @@ if __name__ == "__main__":
     dataset = TennisCourtDataset(data_path="/Users/tleyden/Library/Application Support/DefaultCompany/TennisCourt/solo_3")
     train_loader = utils.data.DataLoader(dataset)
     litvgg16 = LitVGG16()
-    logger = TensorBoardLogger("logs", name="tennis_court_cnn")
-    trainer = pl.Trainer(max_epochs=1, logger=logger)
+
+    # Initialize wandb logger
+    wandb_logger = WandbLogger(project="tennis_court_cnn")
+
+    trainer = pl.Trainer(max_epochs=2, logger=wandb_logger)
     trainer.fit(model=litvgg16, train_dataloaders=train_loader)
