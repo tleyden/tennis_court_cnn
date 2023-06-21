@@ -28,6 +28,9 @@ class Model(torch.nn.Module):
     def forward(self, x):
 
         y_pred = self.vgg16(x)
+
+        # TODO: convert the raw categorical output to choose the closest actual category (0, 1, or 2)
+
         return y_pred
     
 # Load an image from a file
