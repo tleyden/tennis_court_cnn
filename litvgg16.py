@@ -135,10 +135,18 @@ if __name__ == "__main__":
         nargs='?',
         help="Path to the data directory"
     )
+
+    parser.add_argument(
+        "num_epochs", 
+        default=20,
+        nargs='?',
+        help="Number of epochs to train for"
+    )
     
     # Parse cli args
     args = parser.parse_args()
     data_path = args.data_path
+    num_epochs = int(args.num_epochs)
 
     dataset = TennisCourtDataset(data_path=data_path)
 
@@ -156,7 +164,7 @@ if __name__ == "__main__":
     wandb_logger = WandbLogger(project="tennis_court_cnn")
 
     trainer = pl.Trainer(
-        max_epochs=20, 
+        max_epochs=num_epochs, 
         logger=wandb_logger, 
         log_every_n_steps=1    # This is only temporarily needed until we train on more data
     )
