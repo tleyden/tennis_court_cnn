@@ -99,6 +99,16 @@ class LitVGG16(pl.LightningModule):
         # Replace the last layer of the VGG16 network with a linear layer
         self.vgg16.classifier[-1] = torch.nn.Linear(in_features=4096, out_features=num_out_features, bias=True)
 
+        # Freeze the weights of all the CNN layers
+        for param in self.vgg16.features.parameters():
+            param.requires_grad = False
+
+        # Verify that the weights are frozen
+        for name, param in self.vgg16.named_parameters():
+            print(name, param.requires_grad)
+
+        print(self.vgg16)
+
     def forward(self, x):
         y_pred = self.vgg16(x)
         return y_pred
@@ -121,7 +131,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "data_path", 
-        default="/Users/tleyden/Library/Application Support/DefaultCompany/TennisCourt/solo_3",
+        default="/Users/tleyden/Library/Application Support/DefaultCompany/TennisCourt/solo_6",
+        nargs='?',
         help="Path to the data directory"
     )
     
@@ -137,7 +148,7 @@ if __name__ == "__main__":
     wandb_logger = WandbLogger(project="tennis_court_cnn")
 
     trainer = pl.Trainer(
-        max_epochs=2, 
+        max_epochs=20, 
         logger=wandb_logger, 
         log_every_n_steps=1    # This is only temporarily needed until we train on more data
     )
