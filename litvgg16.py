@@ -134,7 +134,7 @@ class LitVGG16(pl.LightningModule):
         self.log('train_loss', loss, prog_bar=True)
 
         # Log the learning rate
-        scheduler = self.trainer.lr_schedulers[0]        
+        scheduler = self.lr_schedulers()
         current_lr = scheduler.get_last_lr()[0]        
         self.log("learning_rate", current_lr, prog_bar=True)
 
