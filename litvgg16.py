@@ -14,6 +14,7 @@ import wandb
 from pytorch_lightning.loggers import WandbLogger
 import argparse
 from pytorch_lightning.callbacks import ModelCheckpoint
+from typing import List
 
 class TennisCourtImageHelper:
 
@@ -21,10 +22,11 @@ class TennisCourtImageHelper:
         pass
 
     @staticmethod
-    def imagepath2tensor(data_path_root: str, image_path: str) -> Tensor:
+    def imagepath2tensor(data_path_root: str, image_path: str, rescale_to: tuple[int, int]) -> tuple[Tensor, tuple[int, int]]:
 
         # Load the image
         image = Image.open(os.path.join(data_path_root, image_path))
+        width, height = image.size
 
         # Convert the image from RGBA (alpha channel) to RGB
         image = image.convert('RGB')
@@ -35,9 +37,28 @@ class TennisCourtImageHelper:
         # Skip this until we figure out how to get the keypoints to match the resized image.
         # According to this post (https://discuss.pytorch.org/t/image-size-for-training-in-vgg/111990/2) it should work with pytorch + vgg
         # Resize image to 224x224
-        # img_tensor = torchvision.transforms.functional.resize(img_tensor, (224, 224))
+        # img_tensor = torchvision.transforms.functional.resize(img_tensor, rescale_to)
 
-        return img_tensor
+        return img_tensor, (width, height)
+    
+    @staticmethod
+    def rescale_keypoint_coordinates(keypoints: List[tuple[float, float]], orig_size: tuple[int, int], rescaled_size: tuple[int, int]) -> List:
+        
+        def rescale_keypoint(keypoint: tuple[float, float]) -> tuple[float, float]:
+            x, y = keypoint
+
+            # Calculate the scaling factors
+            width_scale = rescaled_size[0] / orig_size[0]
+            height_scale = rescaled_size[1] / orig_size[1]
+
+            # Transform the keypoint coordinates to the new coordinate system
+            resized_x = x * width_scale
+            resized_y = y * height_scale
+
+            return (resized_x, resized_y)
+
+        return [rescale_keypoint(keypoint) for keypoint in keypoints]
+         
     
 class TennisCourtDataset(torch.utils.data.Dataset):
 
@@ -55,6 +76,9 @@ class TennisCourtDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx):
         
+        # Rescale the image and its associated keypoints to this size
+        img_rescale_size = (224, 224)
+
         solo_frame = self.solo_frames[idx]
 
         # Each frame has a list of captures, we will just use the first one
@@ -66,7 +90,7 @@ class TennisCourtDataset(torch.utils.data.Dataset):
         capture_img_file_path = f"sequence.{sequence}/{capture.filename}"
 
         # Load the image and convert it to the appropriate tensor
-        img_tensor = TennisCourtImageHelper.imagepath2tensor(self.data_path, capture_img_file_path)
+        img_tensor, img_size = TennisCourtImageHelper.imagepath2tensor(self.data_path, capture_img_file_path, img_rescale_size)
 
         # Get a reference to the keypoint annotations
         annotations = capture.annotations
@@ -75,17 +99,21 @@ class TennisCourtDataset(torch.utils.data.Dataset):
         if len(keypoints) != 16:
             raise Exception("Expected 16 keypoints")
         
+        # Disabled for now since we are not using the state
         # Extract the x,y,state values into a nested list
         # flattened_keypoints = [(kp.location[0], kp.location[1], kp.state) for kp in keypoints]
 
         # Extract the x,y values into a nested list
-        flattened_keypoints = [(kp.location[0], kp.location[1]) for kp in keypoints]
+        keypoint_tuples = [(kp.location[0], kp.location[1]) for kp in keypoints]
+
+        # Rescale the keypoints to match the rescaled image
+        rescaled_keypoints = TennisCourtImageHelper.rescale_keypoint_coordinates(keypoint_tuples, img_size, img_rescale_size)
 
         # Flatten the nested list
-        flattened_keypoints = [element for sublist in flattened_keypoints for element in sublist]
+        flattened_rescaled_keypoints = [element for sublist in rescaled_keypoints for element in sublist]
 
         # Convert the list to a tensor
-        keypoints_tensor = torch.tensor(flattened_keypoints)
+        keypoints_tensor = torch.tensor(flattened_rescaled_keypoints)
         
         return img_tensor, keypoints_tensor
 
