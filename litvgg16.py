@@ -15,7 +15,29 @@ from pytorch_lightning.loggers import WandbLogger
 import argparse
 from pytorch_lightning.callbacks import ModelCheckpoint
 
+class TennisCourtImageHelper:
 
+    def __init__(self):
+        pass
+
+    @staticmethod
+    def imagepath2tensor(data_path_root: str, image_path: str) -> Tensor:
+
+        # Load the image
+        image = Image.open(os.path.join(data_path_root, image_path))
+
+        # Convert the image from RGBA (alpha channel) to RGB
+        image = image.convert('RGB')
+
+        # Convert the image to a tensor
+        img_tensor = torchvision.transforms.ToTensor()(image)
+
+        # Skip this until we figure out how to get the keypoints to match the resized image.
+        # According to this post (https://discuss.pytorch.org/t/image-size-for-training-in-vgg/111990/2) it should work with pytorch + vgg
+        # Resize image to 224x224
+        # img_tensor = torchvision.transforms.functional.resize(img_tensor, (224, 224))
+
+        return img_tensor
     
 class TennisCourtDataset(torch.utils.data.Dataset):
 
@@ -43,17 +65,8 @@ class TennisCourtDataset(torch.utils.data.Dataset):
         sequence = solo_frame.sequence
         capture_img_file_path = f"sequence.{sequence}/{capture.filename}"
 
-        # Load the image
-        image = Image.open(os.path.join(self.data_path, capture_img_file_path))
-
-        # Convert the image from RGBA (alpha channel) to RGB
-        image = image.convert('RGB')
-
-        # Convert the image to a tensor
-        img_tensor = torchvision.transforms.ToTensor()(image)
-
-        # Resize image to 224x224
-        img_tensor = torchvision.transforms.functional.resize(img_tensor, (224, 224))
+        # Load the image and convert it to the appropriate tensor
+        img_tensor = TennisCourtImageHelper.imagepath2tensor(self.data_path, capture_img_file_path)
 
         # Get a reference to the keypoint annotations
         annotations = capture.annotations
