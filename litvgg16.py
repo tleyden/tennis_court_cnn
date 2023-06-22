@@ -1,6 +1,3 @@
-
-# Pytorch lightning module for VGG16
-
 from typing import Any
 import torch
 from torch import optim, nn, utils, Tensor
@@ -16,8 +13,13 @@ import argparse
 from pytorch_lightning.callbacks import ModelCheckpoint
 from typing import List
 from torchvision.transforms import ToPILImage
+import cv2
+import numpy as np
 
 class TennisCourtImageHelper:
+
+    # Rescale the image and its associated keypoints to this size
+    img_rescale_size = (224, 224)
 
     def __init__(self):
         pass
@@ -60,6 +62,32 @@ class TennisCourtImageHelper:
             return (resized_x, resized_y)
 
         return [rescale_keypoint(keypoint) for keypoint in keypoints]
+    
+    @staticmethod
+    def add_keypoints_to_image(pil_image: Image, flattened_keypoints: List[float], color: tuple[int]) -> Image:
+
+        # Convert each float -> int
+        flattened_keypoints = [int(round(kp)) for kp in flattened_keypoints]
+        
+        # Convert the flattened keypoints to a list of tuples
+        keypoint_pairs = [(flattened_keypoints[i], flattened_keypoints[i + 1]) for i in range(0, len(flattened_keypoints), 2)]
+
+        # Convert the image to opencv format
+        opencv_image = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
+
+        for keypoint_pair in keypoint_pairs:
+            center_coordinates = keypoint_pair  # (x, y) coordinates of the center
+            thickness = 2  # Thickness of the circle's outline
+            radius = 5  # Radius of the circle
+        
+
+            # Draw the circle on the image
+            cv2.circle(opencv_image, center_coordinates, radius, color, thickness)
+
+        # Convert the image back to PIL format
+        pil_image = Image.fromarray(cv2.cvtColor(opencv_image, cv2.COLOR_BGR2RGB))
+
+        return pil_image
          
     
 class TennisCourtDataset(torch.utils.data.Dataset):
@@ -78,8 +106,7 @@ class TennisCourtDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx):
         
-        # Rescale the image and its associated keypoints to this size
-        img_rescale_size = (224, 224)
+
 
         solo_frame = self.solo_frames[idx]
 
@@ -92,7 +119,7 @@ class TennisCourtDataset(torch.utils.data.Dataset):
         capture_img_file_path = f"sequence.{sequence}/{capture.filename}"
 
         # Load the image and convert it to the appropriate tensor
-        img_tensor, img_size = TennisCourtImageHelper.imagepath2tensor(self.data_path, capture_img_file_path, img_rescale_size)
+        img_tensor, img_size = TennisCourtImageHelper.imagepath2tensor(self.data_path, capture_img_file_path, TennisCourtImageHelper.img_rescale_size)
 
         # Get a reference to the keypoint annotations
         annotations = capture.annotations
@@ -109,7 +136,7 @@ class TennisCourtDataset(torch.utils.data.Dataset):
         keypoint_tuples = [(kp.location[0], kp.location[1]) for kp in keypoints]
 
         # Rescale the keypoints to match the rescaled image
-        rescaled_keypoints = TennisCourtImageHelper.rescale_keypoint_coordinates(keypoint_tuples, img_size, img_rescale_size)
+        rescaled_keypoints = TennisCourtImageHelper.rescale_keypoint_coordinates(keypoint_tuples, img_size, TennisCourtImageHelper.img_rescale_size)
 
         # Flatten the nested list
         flattened_rescaled_keypoints = [element for sublist in rescaled_keypoints for element in sublist]
@@ -183,9 +210,22 @@ class LitVGG16(pl.LightningModule):
 
         # Log the first image of the first batch of each epoch
         if batch_idx == 0:
+
             first_img_in_batch = x[0]
+
+            # Convert the tensor to a PIL image
             pil_image = ToPILImage()(first_img_in_batch)
-            wandb.log({"train_images": [wandb.Image(pil_image)]})
+
+            # Add ground truth and predicted keypoints to the image
+            width, height = pil_image.size
+            if width != TennisCourtImageHelper.img_rescale_size[0] or height != TennisCourtImageHelper.img_rescale_size[1]:
+                raise Exception("Expected image size to be 224x224")
+            
+            # Show green keypoints for the ground truth and red keypoints for the predicted keypoints
+            pil_image_ground_truth = TennisCourtImageHelper.add_keypoints_to_image(pil_image, y[0].tolist(), color=(0, 255, 0))
+            pil_image_predicted = TennisCourtImageHelper.add_keypoints_to_image(pil_image, y_pred[0].tolist(), color=(0, 0, 255))
+            
+            wandb.log({f"train_images_epoch_{self.current_epoch}": [wandb.Image(pil_image_ground_truth), wandb.Image(pil_image_predicted)]})
 
         return loss
     
