@@ -34,10 +34,8 @@ class TennisCourtImageHelper:
         # Convert the image to a tensor
         img_tensor = torchvision.transforms.ToTensor()(image)
 
-        # Skip this until we figure out how to get the keypoints to match the resized image.
-        # According to this post (https://discuss.pytorch.org/t/image-size-for-training-in-vgg/111990/2) it should work with pytorch + vgg
         # Resize image to 224x224
-        # img_tensor = torchvision.transforms.functional.resize(img_tensor, rescale_to)
+        img_tensor = torchvision.transforms.functional.resize(img_tensor, rescale_to)
 
         return img_tensor, (width, height)
     
