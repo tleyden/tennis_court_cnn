@@ -15,6 +15,7 @@ from pytorch_lightning.loggers import WandbLogger
 import argparse
 from pytorch_lightning.callbacks import ModelCheckpoint
 from typing import List
+from torchvision.transforms import ToPILImage
 
 class TennisCourtImageHelper:
 
@@ -31,11 +32,14 @@ class TennisCourtImageHelper:
         # Convert the image from RGBA (alpha channel) to RGB
         image = image.convert('RGB')
 
-        # Convert the image to a tensor
-        img_tensor = torchvision.transforms.ToTensor()(image)
-
         # Resize image to 224x224
-        img_tensor = torchvision.transforms.functional.resize(img_tensor, rescale_to)
+        resized_image = image.resize(rescale_to, Image.LANCZOS)
+
+        # Convert the image to a tensor
+        img_tensor = torchvision.transforms.ToTensor()(resized_image)
+
+        # Disable resizing via pytorch, it seems to be adding a lot of noise to the image
+        # img_tensor = torchvision.transforms.functional.resize(img_tensor, rescale_to)
 
         return img_tensor, (width, height)
     
@@ -176,6 +180,12 @@ class LitVGG16(pl.LightningModule):
         scheduler = self.lr_schedulers()
         current_lr = scheduler.get_last_lr()[0]        
         self.log("learning_rate", current_lr, prog_bar=True)
+
+        # Log the first image of the first batch of each epoch
+        if batch_idx == 0:
+            first_img_in_batch = x[0]
+            pil_image = ToPILImage()(first_img_in_batch)
+            wandb.log({"train_images": [wandb.Image(pil_image)]})
 
         return loss
     
