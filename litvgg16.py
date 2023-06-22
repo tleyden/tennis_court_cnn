@@ -80,8 +80,9 @@ class TennisCourtDataset(torch.utils.data.Dataset):
 
 class LitVGG16(pl.LightningModule):
     
-    def __init__(self):
-        super().__init__(num_epochs)
+    def __init__(self, num_epochs):
+        
+        super().__init__()
 
         self.num_epochs = num_epochs
         
