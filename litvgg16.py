@@ -81,7 +81,7 @@ class TennisCourtDataset(torch.utils.data.Dataset):
 class LitVGG16(pl.LightningModule):
     
     def __init__(self, num_epochs):
-        
+
         super().__init__()
 
         self.num_epochs = num_epochs
@@ -132,6 +132,12 @@ class LitVGG16(pl.LightningModule):
         y_pred = self(x)
         loss = torch.nn.functional.mse_loss(y_pred, y)
         self.log('train_loss', loss, prog_bar=True)
+
+        # Log the learning rate
+        scheduler = self.trainer.lr_schedulers[0]        
+        current_lr = scheduler.get_last_lr()[0]        
+        self.log("learning_rate", current_lr, prog_bar=True)
+
         return loss
     
     def configure_optimizers(self):
