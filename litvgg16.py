@@ -81,7 +81,9 @@ class TennisCourtDataset(torch.utils.data.Dataset):
 class LitVGG16(pl.LightningModule):
     
     def __init__(self):
-        super().__init__()
+        super().__init__(num_epochs)
+
+        self.num_epochs = num_epochs
         
         # Create a VGG16 network
         self.vgg16 = torch.hub.load('pytorch/vision:v0.6.0', 'vgg16', pretrained=False)
@@ -132,8 +134,17 @@ class LitVGG16(pl.LightningModule):
         return loss
     
     def configure_optimizers(self):
+        
         optimizer = optim.Adam(self.parameters(), lr=1e-3)
-        return optimizer
+
+        # Define a learning rate scheduler
+        scheduler = optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, 
+            T_max=self.num_epochs, # The maximum number of iterations or epochs before the learning rate is reset. It determines the period of the cosine annealing schedule.
+            eta_min=1e-5 # The minimum learning rate. After reaching eta_min, the learning rate will no longer decrease.
+        )
+
+        return [optimizer], [scheduler]
     
     
 if __name__ == "__main__":
@@ -169,7 +180,7 @@ if __name__ == "__main__":
     )
     
     # Create the lightning module
-    litvgg16 = LitVGG16()
+    litvgg16 = LitVGG16(num_epochs=num_epochs)
 
     # Initialize wandb logger
     wandb_logger = WandbLogger(project="tennis_court_cnn")
