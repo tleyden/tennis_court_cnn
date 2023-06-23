@@ -157,7 +157,7 @@ class LitVGG16(pl.LightningModule):
         self.num_epochs = num_epochs
         
         # Create a VGG16 network
-        self.vgg16 = torch.hub.load('pytorch/vision:v0.6.0', 'vgg16', pretrained=False)
+        self.vgg16 = torch.hub.load('pytorch/vision:v0.6.0', 'vgg16', pretrained=True)
         
         # There are 16 keypoints to detect, each keypoint having 3 atributtes:
         # 1. x coordinate
@@ -174,9 +174,9 @@ class LitVGG16(pl.LightningModule):
         # Replace the last layer of the VGG16 network with a linear layer
         # self.vgg16.classifier[-1] = torch.nn.Linear(in_features=4096, out_features=num_out_features, bias=True)
 
-        # # Freeze the weights of all the CNN layers
-        # for param in self.vgg16.features.parameters():
-        #     param.requires_grad = False
+        # Freeze the weights of all the CNN layers
+        for param in self.vgg16.features.parameters():
+            param.requires_grad = False
 
         # # Verify that the weights are frozen
         # for name, param in self.vgg16.named_parameters():
@@ -192,6 +192,13 @@ class LitVGG16(pl.LightningModule):
         )
 
         print(self.vgg16)
+
+        # Iterate over all parameters in the model
+        for name, param in self.vgg16.named_parameters():
+            if param.requires_grad:
+                print(name, "is trainable")
+            else:
+                print(name, "is not trainable")
 
     def forward(self, x):
         y_pred = self.vgg16(x)
