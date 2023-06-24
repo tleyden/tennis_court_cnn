@@ -3,3 +3,4 @@ logs/
 tennis_court_cnn/
 wandb/
 saved_models/
+datasets/
