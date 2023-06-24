@@ -66,7 +66,7 @@ class TennisCourtImageHelper:
         return [rescale_keypoint(keypoint) for keypoint in keypoints]
     
     @staticmethod
-    def add_keypoints_to_image(pil_image: Image, flattened_keypoints: List[float], color: tuple[int]) -> Image:
+    def add_keypoints_to_image(pil_image: Image, flattened_keypoints: List[float], kp_states_pred: List[Tensor], color: tuple[int]) -> Image:
 
         # Convert each float -> int
         flattened_keypoints = [int(round(kp)) for kp in flattened_keypoints]
@@ -77,7 +77,13 @@ class TennisCourtImageHelper:
         # Convert the image to opencv format
         opencv_image = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
 
-        for keypoint_pair in keypoint_pairs:
+        for i, keypoint_pair in enumerate(keypoint_pairs):
+
+            kp_state_pred = kp_states_pred[i]
+            if torch.argmax(kp_state_pred).item() != 2:
+                # Skip any keypoints that are not visible.  State = 2 means visible
+                continue
+
             center_coordinates = keypoint_pair  # (x, y) coordinates of the center
             thickness = 2  # Thickness of the circle's outline
             radius = 5  # Radius of the circle
@@ -144,6 +150,11 @@ class TennisCourtDataset(torch.utils.data.Dataset):
         # Convert the list to a tensor
         keypoints_tensor = torch.tensor(flattened_rescaled_keypoints)
 
+        # Extract the keypoint states into a tensor
+        # A state of 0 means the joint either does not exist or is outside of the image's bounds
+        # 1 denotes a joint that is inside of the image but cannot be seen because the part of the object it belongs to is not visible in the image
+        # 2 means the joint was present and visible.
+        # See https://github.com/Unity-Technologies/com.unity.perception/blob/main/com.unity.perception/Documentation~/HumanPose/TUTORIAL.md
         keypoint_states = [kp.state for kp in keypoints]
         keypoint_states_tensor = torch.tensor(keypoint_states, dtype=torch.long)
         
@@ -269,6 +280,25 @@ class LitVGG16(pl.LightningModule):
 
             first_img_in_batch = x[0]
 
+            kp0_state_0 = kp0_state[0]
+            kp1_state_0 = kp1_state[0]
+            kp2_state_0 = kp2_state[0]
+            kp3_state_0 = kp3_state[0]
+            kp4_state_0 = kp4_state[0]
+            kp5_state_0 = kp5_state[0]
+            kp6_state_0 = kp6_state[0]
+            kp7_state_0 = kp7_state[0]
+            kp8_state_0 = kp8_state[0]
+            kp9_state_0 = kp9_state[0]
+            kp10_state_0 = kp10_state[0]
+            kp11_state_0 = kp11_state[0]
+            kp12_state_0 = kp12_state[0]
+            kp13_state_0 = kp13_state[0]
+            kp14_state_0 = kp14_state[0]
+            kp15_state_0 = kp15_state[0]
+
+            kp_states_pred = [kp0_state_0, kp1_state_0, kp2_state_0, kp3_state_0, kp4_state_0, kp5_state_0, kp6_state_0, kp7_state_0, kp8_state_0, kp9_state_0, kp10_state_0, kp11_state_0, kp12_state_0, kp13_state_0, kp14_state_0, kp15_state_0]
+
             # Convert the tensor to a PIL image
             pil_image = ToPILImage()(first_img_in_batch)
 
@@ -278,8 +308,8 @@ class LitVGG16(pl.LightningModule):
                 raise Exception("Expected image size to be 224x224")
             
             # Show green keypoints for the ground truth and red keypoints for the predicted keypoints
-            pil_image_ground_truth = TennisCourtImageHelper.add_keypoints_to_image(pil_image, keypoints_xy_gt[0].tolist(), color=(0, 255, 0))
-            pil_image_predicted = TennisCourtImageHelper.add_keypoints_to_image(pil_image, keypoints_xy_pred[0].tolist(), color=(0, 0, 255))
+            pil_image_ground_truth = TennisCourtImageHelper.add_keypoints_to_image(pil_image, keypoints_xy_gt[0].tolist(), kp_states_pred, color=(0, 255, 0))
+            pil_image_predicted = TennisCourtImageHelper.add_keypoints_to_image(pil_image, keypoints_xy_pred[0].tolist(), kp_states_pred, color=(0, 0, 255))
             
             wandb.log({f"train_images_epoch_{self.current_epoch}": [wandb.Image(pil_image_ground_truth), wandb.Image(pil_image_predicted)]})
 
@@ -305,7 +335,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "data_path", 
-        default="/Users/tleyden/Library/Application Support/DefaultCompany/TennisCourt/solo_19",
+        # default="/Users/tleyden/Library/Application Support/DefaultCompany/TennisCourt/solo_19",
+        default="/Users/tleyden/Library/Application Support/DefaultCompany/TennisCourt/solo_34",  # missing corners
         nargs='?',
         help="Path to the data directory"
     )
