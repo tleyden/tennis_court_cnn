@@ -40,8 +40,10 @@ class TennisCourtImageHelper:
         # Convert the image to a tensor
         img_tensor = torchvision.transforms.ToTensor()(resized_image)
 
-        # Disable resizing via pytorch, it seems to be adding a lot of noise to the image
-        # img_tensor = torchvision.transforms.functional.resize(img_tensor, rescale_to)
+        # Normalize the image on the pretrained model's mean and std
+        normalized_image = torchvision.transforms.Normalize(
+            mean=[0.485, 0.456, 0.406],
+            std=[0.229, 0.224, 0.225])(img_tensor)
 
         return img_tensor, (width, height)
     
@@ -106,8 +108,6 @@ class TennisCourtDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx):
         
-
-
         solo_frame = self.solo_frames[idx]
 
         # Each frame has a list of captures, we will just use the first one
@@ -130,13 +130,17 @@ class TennisCourtDataset(torch.utils.data.Dataset):
         
         # Disabled for now since we are not using the state
         # Extract the x,y,state values into a nested list
-        # flattened_keypoints = [(kp.location[0], kp.location[1], kp.state) for kp in keypoints]
+        # keypoint_tuples = [(kp.location[0], kp.location[1], kp.state) for kp in keypoints]
 
         # Extract the x,y values into a nested list
-        keypoint_tuples = [(kp.location[0], kp.location[1]) for kp in keypoints]
+        keypoint_xy_tuples = [(kp.location[0], kp.location[1]) for kp in keypoints]
 
         # Rescale the keypoints to match the rescaled image
-        rescaled_keypoints = TennisCourtImageHelper.rescale_keypoint_coordinates(keypoint_tuples, img_size, TennisCourtImageHelper.img_rescale_size)
+        rescaled_xy_keypoints = TennisCourtImageHelper.rescale_keypoint_coordinates(keypoint_xy_tuples, img_size, TennisCourtImageHelper.img_rescale_size)
+
+        # Add the state back to the rescaled keypoint tuples
+        assert len(rescaled_xy_keypoints) == len(keypoints)
+        rescaled_keypoints = [(x, y, kp.state) for (kp, (x, y)) in zip(keypoints, rescaled_xy_keypoints)]
 
         # Flatten the nested list
         flattened_rescaled_keypoints = [element for sublist in rescaled_keypoints for element in sublist]
@@ -166,10 +170,10 @@ class LitVGG16(pl.LightningModule):
         #   exist or is outside of the image's bounds, 1 denotes a joint that is inside 
         #   of the image but cannot be seen because the part of the object it belongs 
         #   to is not visible in the image, and 2 means the joint was present and visible.
-        # num_out_features = 16 * 3
+        num_out_features = 16 * 3
 
         # Skip the state for now to make it easier, and only use images where all keypoints are visible
-        num_out_features = 16 * 2
+        # num_out_features = 16 * 2
 
         # Replace the last layer of the VGG16 network with a linear layer
         # self.vgg16.classifier[-1] = torch.nn.Linear(in_features=4096, out_features=num_out_features, bias=True)
@@ -192,13 +196,6 @@ class LitVGG16(pl.LightningModule):
         )
 
         print(self.vgg16)
-
-        # Iterate over all parameters in the model
-        for name, param in self.vgg16.named_parameters():
-            if param.requires_grad:
-                print(name, "is trainable")
-            else:
-                print(name, "is not trainable")
 
     def forward(self, x):
         y_pred = self.vgg16(x)
@@ -256,7 +253,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "data_path", 
-        default="/Users/tleyden/Library/Application Support/DefaultCompany/TennisCourt/solo_7",
+        default="/Users/tleyden/Library/Application Support/DefaultCompany/TennisCourt/solo_19",
         nargs='?',
         help="Path to the data directory"
     )
