@@ -138,17 +138,16 @@ class TennisCourtDataset(torch.utils.data.Dataset):
         # Rescale the keypoints to match the rescaled image
         rescaled_xy_keypoints = TennisCourtImageHelper.rescale_keypoint_coordinates(keypoint_xy_tuples, img_size, TennisCourtImageHelper.img_rescale_size)
 
-        # Add the state back to the rescaled keypoint tuples
-        assert len(rescaled_xy_keypoints) == len(keypoints)
-        rescaled_keypoints = [(x, y, kp.state) for (kp, (x, y)) in zip(keypoints, rescaled_xy_keypoints)]
-
         # Flatten the nested list
-        flattened_rescaled_keypoints = [element for sublist in rescaled_keypoints for element in sublist]
+        flattened_rescaled_keypoints = [element for sublist in rescaled_xy_keypoints for element in sublist]
 
         # Convert the list to a tensor
         keypoints_tensor = torch.tensor(flattened_rescaled_keypoints)
+
+        keypoint_states = [kp.state for kp in keypoints]
+        keypoint_states_tensor = torch.tensor(keypoint_states, dtype=torch.long)
         
-        return img_tensor, keypoints_tensor
+        return img_tensor, keypoints_tensor, keypoint_states_tensor
 
 
 
@@ -166,14 +165,7 @@ class LitVGG16(pl.LightningModule):
         # There are 16 keypoints to detect, each keypoint having 3 atributtes:
         # 1. x coordinate
         # 2. y coordinate
-        # 3. a "state" (visible or not) A state of 0 means the joint either does not 
-        #   exist or is outside of the image's bounds, 1 denotes a joint that is inside 
-        #   of the image but cannot be seen because the part of the object it belongs 
-        #   to is not visible in the image, and 2 means the joint was present and visible.
-        num_out_features = 16 * 3
-
-        # Skip the state for now to make it easier, and only use images where all keypoints are visible
-        # num_out_features = 16 * 2
+        num_out_features = 16 * 2
 
         # Replace the last layer of the VGG16 network with a linear layer
         # self.vgg16.classifier[-1] = torch.nn.Linear(in_features=4096, out_features=num_out_features, bias=True)
@@ -187,7 +179,9 @@ class LitVGG16(pl.LightningModule):
         #     print(name, param.requires_grad)
 
         # Redefine the classifier to remove the dropout layers, at least while trying to overfit the network
-        self.vgg16.classifier = nn.Sequential(
+        self.vgg16.classifier = nn.Identity()
+
+        self.continuous_output = nn.Sequential(
             nn.Linear(25088, 4096),
             nn.ReLU(inplace=True),
             nn.Linear(4096, 4096),
@@ -195,16 +189,74 @@ class LitVGG16(pl.LightningModule):
             nn.Linear(4096, num_out_features)
         )
 
+        # Separate head for categorical output for the 3 different states that each keypoint can have
+        # TODO: switch to arrays instead of separate variables
+        self.kp0_state = nn.Linear(25088, 3)
+        self.kp1_state = nn.Linear(25088, 3)
+        self.kp2_state = nn.Linear(25088, 3)
+        self.kp3_state = nn.Linear(25088, 3)
+        self.kp4_state = nn.Linear(25088, 3)
+        self.kp5_state = nn.Linear(25088, 3)
+        self.kp6_state = nn.Linear(25088, 3)
+        self.kp7_state = nn.Linear(25088, 3)
+        self.kp8_state = nn.Linear(25088, 3)
+        self.kp9_state = nn.Linear(25088, 3)
+        self.kp10_state = nn.Linear(25088, 3)
+        self.kp11_state = nn.Linear(25088, 3)
+        self.kp12_state = nn.Linear(25088, 3)
+        self.kp13_state = nn.Linear(25088, 3)
+        self.kp14_state = nn.Linear(25088, 3)
+        self.kp15_state = nn.Linear(25088, 3)
         print(self.vgg16)
 
     def forward(self, x):
-        y_pred = self.vgg16(x)
-        return y_pred
+        vgg_features = self.vgg16(x)
+        keypoints_xy = self.continuous_output(vgg_features)
+
+        # TODO: switch to arrays instead of separate variables
+        kp0_state = self.kp0_state(vgg_features)
+        kp1_state = self.kp1_state(vgg_features)
+        kp2_state = self.kp2_state(vgg_features)
+        kp3_state = self.kp3_state(vgg_features)
+        kp4_state = self.kp4_state(vgg_features)
+        kp5_state = self.kp5_state(vgg_features)
+        kp6_state = self.kp6_state(vgg_features)
+        kp7_state = self.kp7_state(vgg_features)
+        kp8_state = self.kp8_state(vgg_features)
+        kp9_state = self.kp9_state(vgg_features)
+        kp10_state = self.kp10_state(vgg_features)
+        kp11_state = self.kp11_state(vgg_features)
+        kp12_state = self.kp12_state(vgg_features)
+        kp13_state = self.kp13_state(vgg_features)
+        kp14_state = self.kp14_state(vgg_features)
+        kp15_state = self.kp15_state(vgg_features)
+
+        return keypoints_xy, kp0_state, kp1_state, kp2_state, kp3_state, kp4_state, kp5_state, kp6_state, kp7_state, kp8_state, kp9_state, kp10_state, kp11_state, kp12_state, kp13_state, kp14_state, kp15_state
     
     def training_step(self, batch, batch_idx):
-        x, y = batch
-        y_pred = self(x)
-        loss = torch.nn.functional.mse_loss(y_pred, y)
+        x, keypoints_xy_gt, kp_states = batch
+        keypoints_xy_pred, kp0_state, kp1_state, kp2_state, kp3_state, kp4_state, kp5_state, kp6_state, kp7_state, kp8_state, kp9_state, kp10_state, kp11_state, kp12_state, kp13_state, kp14_state, kp15_state = self(x)
+        keypoints_xy_loss = torch.nn.functional.mse_loss(keypoints_xy_pred, keypoints_xy_gt)
+
+        kp0_loss = torch.nn.functional.cross_entropy(kp0_state, kp_states[:, 0])
+        kp1_loss = torch.nn.functional.cross_entropy(kp1_state, kp_states[:, 1])
+        kp2_loss = torch.nn.functional.cross_entropy(kp2_state, kp_states[:, 2])
+        kp3_loss = torch.nn.functional.cross_entropy(kp3_state, kp_states[:, 3])
+        kp4_loss = torch.nn.functional.cross_entropy(kp4_state, kp_states[:, 4])
+        kp5_loss = torch.nn.functional.cross_entropy(kp5_state, kp_states[:, 5])
+        kp6_loss = torch.nn.functional.cross_entropy(kp6_state, kp_states[:, 6])
+        kp7_loss = torch.nn.functional.cross_entropy(kp7_state, kp_states[:, 7])
+        kp8_loss = torch.nn.functional.cross_entropy(kp8_state, kp_states[:, 8])
+        kp9_loss = torch.nn.functional.cross_entropy(kp9_state, kp_states[:, 9])
+        kp10_loss = torch.nn.functional.cross_entropy(kp10_state, kp_states[:, 10])
+        kp11_loss = torch.nn.functional.cross_entropy(kp11_state, kp_states[:, 11])
+        kp12_loss = torch.nn.functional.cross_entropy(kp12_state, kp_states[:, 12])
+        kp13_loss = torch.nn.functional.cross_entropy(kp13_state, kp_states[:, 13])
+        kp14_loss = torch.nn.functional.cross_entropy(kp14_state, kp_states[:, 14])
+        kp15_loss = torch.nn.functional.cross_entropy(kp15_state, kp_states[:, 15])
+
+        loss = keypoints_xy_loss + kp0_loss + kp1_loss + kp2_loss + kp3_loss + kp4_loss + kp5_loss + kp6_loss + kp7_loss + kp8_loss + kp9_loss + kp10_loss + kp11_loss + kp12_loss + kp13_loss + kp14_loss + kp15_loss
+
         self.log('train_loss', loss, prog_bar=True)
 
         # Log the learning rate
@@ -226,8 +278,8 @@ class LitVGG16(pl.LightningModule):
                 raise Exception("Expected image size to be 224x224")
             
             # Show green keypoints for the ground truth and red keypoints for the predicted keypoints
-            pil_image_ground_truth = TennisCourtImageHelper.add_keypoints_to_image(pil_image, y[0].tolist(), color=(0, 255, 0))
-            pil_image_predicted = TennisCourtImageHelper.add_keypoints_to_image(pil_image, y_pred[0].tolist(), color=(0, 0, 255))
+            pil_image_ground_truth = TennisCourtImageHelper.add_keypoints_to_image(pil_image, keypoints_xy_gt[0].tolist(), color=(0, 255, 0))
+            pil_image_predicted = TennisCourtImageHelper.add_keypoints_to_image(pil_image, keypoints_xy_pred[0].tolist(), color=(0, 0, 255))
             
             wandb.log({f"train_images_epoch_{self.current_epoch}": [wandb.Image(pil_image_ground_truth), wandb.Image(pil_image_predicted)]})
 
