@@ -223,7 +223,7 @@ class LitVGG16(pl.LightningModule):
         # self.kp14_state = nn.Linear(25088, 3)
         # self.kp15_state = nn.Linear(25088, 3)
         
-        self.kpo_state_layers = [nn.Linear(25088, 3) for i in range(16)]
+        self.kpo_state_layers = [nn.Linear(25088, 3, device=self.device) for i in range(16)]
 
         print(self.vgg16)
 
@@ -252,8 +252,8 @@ class LitVGG16(pl.LightningModule):
         # kp14_state = self.kp14_state(vgg_features)
         # kp15_state = self.kp15_state(vgg_features)
 
-        kpo_states_pred = [self.kpo_state_layers[i](vgg_features) for i in range(16)]
-        kpo_states_pred_stacked = torch.stack(kpo_states_pred, dim=1)
+        # kpo_states_pred = [self.kpo_state_layers[i](vgg_features) for i in range(16)]
+        kpo_states_pred_stacked = torch.stack([self.kpo_state_layers[i](vgg_features) for i in range(16)], dim=1)
 
         #return keypoints_xy, kp0_state, kp1_state, kp2_state, kp3_state, kp4_state, kp5_state, kp6_state, kp7_state, kp8_state, kp9_state, kp10_state, kp11_state, kp12_state, kp13_state, kp14_state, kp15_state
 
