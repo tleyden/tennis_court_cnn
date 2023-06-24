@@ -17,6 +17,9 @@ import cv2
 import numpy as np
 import torch.nn.functional as F
 
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+
 class TennisCourtImageHelper:
 
     # Rescale the image and its associated keypoints to this size
@@ -331,7 +334,7 @@ class LitVGG16(pl.LightningModule):
             kp_states_gt_first_batch = []
             for kp_state_gt in kp_states[0]:
                 predicted_class_index = kp_state_gt
-                one_hot_vector = F.one_hot(predicted_class_index, 3)
+                one_hot_vector = F.one_hot(predicted_class_index, 3, device=self.device)
                 kp_states_gt_first_batch.append(one_hot_vector)
 
             # Convert the tensor to a PIL image
