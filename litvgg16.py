@@ -253,10 +253,11 @@ class LitVGG16(pl.LightningModule):
         # kp15_state = self.kp15_state(vgg_features)
 
         kpo_states_pred = [self.kpo_state_layers[i](vgg_features) for i in range(16)]
+        kpo_states_pred_stacked = torch.stack(kpo_states_pred, dim=1)
 
         #return keypoints_xy, kp0_state, kp1_state, kp2_state, kp3_state, kp4_state, kp5_state, kp6_state, kp7_state, kp8_state, kp9_state, kp10_state, kp11_state, kp12_state, kp13_state, kp14_state, kp15_state
 
-        return keypoints_xy, kpo_states_pred
+        return keypoints_xy, kpo_states_pred_stacked
     
     def training_step(self, batch, batch_idx):
         
@@ -286,9 +287,17 @@ class LitVGG16(pl.LightningModule):
 
         loss = keypoints_xy_loss
 
-        for i, kp_state_pred in enumerate(kp_states_pred):
-            kp_loss = torch.nn.functional.cross_entropy(kp_state_pred, kp_states[:, i])
+        # for i, kp_state_pred in enumerate(kp_states_pred):
+        #     kp_loss = torch.nn.functional.cross_entropy(kp_state_pred, kp_states[:, i])
+        #     loss += kp_loss
+
+        # New version that uses tensor
+        for i in range(16):
+            kp_loss = torch.nn.functional.cross_entropy(kp_states_pred[:, i], kp_states[:, i])
             loss += kp_loss
+
+        # kp_loss = torch.nn.functional.cross_entropy(kp_states_pred, kp_states)
+        loss += kp_loss
 
         # loss = keypoints_xy_loss + kp0_loss + kp1_loss + kp2_loss + kp3_loss + kp4_loss + kp5_loss + kp6_loss + kp7_loss + kp8_loss + kp9_loss + kp10_loss + kp11_loss + kp12_loss + kp13_loss + kp14_loss + kp15_loss
 
@@ -327,15 +336,20 @@ class LitVGG16(pl.LightningModule):
 
             # Get the first batch for all of the kp_state heads.  This will be a list of 16 elements, each element
             # being a tensor of size 3 (for the 3 possible states)
-            kp_states_pred_first_batch = []
-            for kp_state_pred in kp_states_pred:
-                kp_states_pred_first_batch.append(kp_state_pred[0])
+            # kp_states_pred_first_batch = []
+            # for kp_state_pred in kp_states_pred:
+            #     kp_states_pred_first_batch.append(kp_state_pred[0])
 
-            kp_states_gt_first_batch = []
-            for kp_state_gt in kp_states[0]:
-                predicted_class_index = kp_state_gt
-                one_hot_vector = F.one_hot(predicted_class_index, 3, device=self.device)
-                kp_states_gt_first_batch.append(one_hot_vector)
+            kp_states_pred_first_batch = kp_states_pred[0]
+
+            # kp_states_gt_first_batch = []
+            # for kp_state_gt in kp_states[0]:
+            #     predicted_class_index = kp_state_gt
+            #     one_hot_vector = F.one_hot(predicted_class_index, 3, device=self.device)
+            #     kp_states_gt_first_batch.append(one_hot_vector)
+
+            kp_states_gt_first_batch = kp_states[0]
+            kp_states_gt_first_batch = F.one_hot(kp_states_gt_first_batch, 3)
 
             # Convert the tensor to a PIL image
             pil_image = ToPILImage()(first_img_in_batch)
