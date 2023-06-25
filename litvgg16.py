@@ -307,8 +307,12 @@ class LitVGG16(pl.LightningModule):
             if width != TennisCourtImageHelper.img_rescale_size[0] or height != TennisCourtImageHelper.img_rescale_size[1]:
                 raise Exception("Expected image size to be 224x224")
             
+            # Convert the ground truth keypoint states to one-hot encoding for the first batch
+            kp_states_gt_first_batch_one_hot = torch.nn.functional.one_hot(kp_states[0], num_classes=3)
+            
             # Show green keypoints for the ground truth and red keypoints for the predicted keypoints
-            pil_image_ground_truth = TennisCourtImageHelper.add_keypoints_to_image(pil_image, keypoints_xy_gt[0].tolist(), kp_states_pred, color=(0, 255, 0))
+            # TODO: fix bug, it should be passing the ground truth in the first call to add_keypoints_to_image
+            pil_image_ground_truth = TennisCourtImageHelper.add_keypoints_to_image(pil_image, keypoints_xy_gt[0].tolist(), kp_states_gt_first_batch_one_hot, color=(0, 255, 0))
             pil_image_predicted = TennisCourtImageHelper.add_keypoints_to_image(pil_image, keypoints_xy_pred[0].tolist(), kp_states_pred, color=(0, 0, 255))
             
             wandb.log({f"train_images_epoch_{self.current_epoch}": [wandb.Image(pil_image_ground_truth), wandb.Image(pil_image_predicted)]})
