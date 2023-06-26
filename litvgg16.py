@@ -176,6 +176,8 @@ class LitVGG16(pl.LightningModule):
         # There are 16 keypoints to detect, each keypoint having 3 atributtes:
         # 1. x coordinate
         # 2. y coordinate
+        # TODO: instead of unconstrained x,y coordinates, we should constrain them to the image size. 
+        # TODO: maybe a better approach would be to use the normalized coordinates (0-1) and then multiply by the image size (with sigmoid activation)
         num_out_features = 16 * 2
 
         # Replace the last layer of the VGG16 network with a linear layer
@@ -225,6 +227,8 @@ class LitVGG16(pl.LightningModule):
         keypoints_xy = self.continuous_output(vgg_features)
 
         # TODO: switch to arrays instead of separate variables
+        # TODO: can this use multi-class loss? 
+        # TODO: if keeping 16 heads, use a module list instead of separate variables 
         kp0_state = self.kp0_state(vgg_features)
         kp1_state = self.kp1_state(vgg_features)
         kp2_state = self.kp2_state(vgg_features)
@@ -382,7 +386,7 @@ if __name__ == "__main__":
     )
 
     trainer = pl.Trainer(
-        callbacks=[checkpoint_callback],
+        # callbacks=[checkpoint_callback], # disable saving checkoints, taking up too much space 
         max_epochs=num_epochs, 
         logger=wandb_logger, 
         log_every_n_steps=10    # This is only temporarily needed until we train on more data
