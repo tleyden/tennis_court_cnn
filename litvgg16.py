@@ -202,24 +202,7 @@ class LitVGG16(pl.LightningModule):
             nn.Linear(4096, num_out_features)
         )
 
-        # Separate head for categorical output for the 3 different states that each keypoint can have
-        # TODO: switch to arrays instead of separate variables
-        self.kp0_state = nn.Linear(25088, 3)
-        self.kp1_state = nn.Linear(25088, 3)
-        self.kp2_state = nn.Linear(25088, 3)
-        self.kp3_state = nn.Linear(25088, 3)
-        self.kp4_state = nn.Linear(25088, 3)
-        self.kp5_state = nn.Linear(25088, 3)
-        self.kp6_state = nn.Linear(25088, 3)
-        self.kp7_state = nn.Linear(25088, 3)
-        self.kp8_state = nn.Linear(25088, 3)
-        self.kp9_state = nn.Linear(25088, 3)
-        self.kp10_state = nn.Linear(25088, 3)
-        self.kp11_state = nn.Linear(25088, 3)
-        self.kp12_state = nn.Linear(25088, 3)
-        self.kp13_state = nn.Linear(25088, 3)
-        self.kp14_state = nn.Linear(25088, 3)
-        self.kp15_state = nn.Linear(25088, 3)
+        self.kp_states = nn.Linear(25088, 16 * 3)
         print(self.vgg16)
 
     def forward(self, x):
@@ -229,48 +212,21 @@ class LitVGG16(pl.LightningModule):
         # TODO: switch to arrays instead of separate variables
         # TODO: can this use multi-class loss? 
         # TODO: if keeping 16 heads, use a module list instead of separate variables 
-        kp0_state = self.kp0_state(vgg_features)
-        kp1_state = self.kp1_state(vgg_features)
-        kp2_state = self.kp2_state(vgg_features)
-        kp3_state = self.kp3_state(vgg_features)
-        kp4_state = self.kp4_state(vgg_features)
-        kp5_state = self.kp5_state(vgg_features)
-        kp6_state = self.kp6_state(vgg_features)
-        kp7_state = self.kp7_state(vgg_features)
-        kp8_state = self.kp8_state(vgg_features)
-        kp9_state = self.kp9_state(vgg_features)
-        kp10_state = self.kp10_state(vgg_features)
-        kp11_state = self.kp11_state(vgg_features)
-        kp12_state = self.kp12_state(vgg_features)
-        kp13_state = self.kp13_state(vgg_features)
-        kp14_state = self.kp14_state(vgg_features)
-        kp15_state = self.kp15_state(vgg_features)
+        kp_state_preds = self.kp_states(vgg_features)
 
-        return keypoints_xy, kp0_state, kp1_state, kp2_state, kp3_state, kp4_state, kp5_state, kp6_state, kp7_state, kp8_state, kp9_state, kp10_state, kp11_state, kp12_state, kp13_state, kp14_state, kp15_state
+        return keypoints_xy, kp_state_preds
     
     def training_step(self, batch, batch_idx):
-        x, keypoints_xy_gt, kp_states = batch
-        keypoints_xy_pred, kp0_state, kp1_state, kp2_state, kp3_state, kp4_state, kp5_state, kp6_state, kp7_state, kp8_state, kp9_state, kp10_state, kp11_state, kp12_state, kp13_state, kp14_state, kp15_state = self(x)
+        x, keypoints_xy_gt, kp_states_gt = batch
+        keypoints_xy_pred, kp_states_pred = self(x)
         keypoints_xy_loss = torch.nn.functional.mse_loss(keypoints_xy_pred, keypoints_xy_gt)
 
-        kp0_loss = torch.nn.functional.cross_entropy(kp0_state, kp_states[:, 0])
-        kp1_loss = torch.nn.functional.cross_entropy(kp1_state, kp_states[:, 1])
-        kp2_loss = torch.nn.functional.cross_entropy(kp2_state, kp_states[:, 2])
-        kp3_loss = torch.nn.functional.cross_entropy(kp3_state, kp_states[:, 3])
-        kp4_loss = torch.nn.functional.cross_entropy(kp4_state, kp_states[:, 4])
-        kp5_loss = torch.nn.functional.cross_entropy(kp5_state, kp_states[:, 5])
-        kp6_loss = torch.nn.functional.cross_entropy(kp6_state, kp_states[:, 6])
-        kp7_loss = torch.nn.functional.cross_entropy(kp7_state, kp_states[:, 7])
-        kp8_loss = torch.nn.functional.cross_entropy(kp8_state, kp_states[:, 8])
-        kp9_loss = torch.nn.functional.cross_entropy(kp9_state, kp_states[:, 9])
-        kp10_loss = torch.nn.functional.cross_entropy(kp10_state, kp_states[:, 10])
-        kp11_loss = torch.nn.functional.cross_entropy(kp11_state, kp_states[:, 11])
-        kp12_loss = torch.nn.functional.cross_entropy(kp12_state, kp_states[:, 12])
-        kp13_loss = torch.nn.functional.cross_entropy(kp13_state, kp_states[:, 13])
-        kp14_loss = torch.nn.functional.cross_entropy(kp14_state, kp_states[:, 14])
-        kp15_loss = torch.nn.functional.cross_entropy(kp15_state, kp_states[:, 15])
+        kp_states_pred_reshaped = kp_states_pred.view(-1, 3)
+        kp_states_gt_reshaped = kp_states_gt.view(-1)
 
-        loss = keypoints_xy_loss + kp0_loss + kp1_loss + kp2_loss + kp3_loss + kp4_loss + kp5_loss + kp6_loss + kp7_loss + kp8_loss + kp9_loss + kp10_loss + kp11_loss + kp12_loss + kp13_loss + kp14_loss + kp15_loss
+        kp_loss = torch.nn.functional.cross_entropy(kp_states_pred_reshaped, kp_states_gt_reshaped)
+
+        loss = keypoints_xy_loss + kp_loss
 
         self.log('train_loss', loss, prog_bar=True)
 
@@ -279,47 +235,47 @@ class LitVGG16(pl.LightningModule):
         current_lr = scheduler.get_last_lr()[0]        
         self.log("learning_rate", current_lr, prog_bar=True)
 
-        # Log the first image of the first batch of each epoch
-        if batch_idx == 0:
+        # # Log the first image of the first batch of each epoch
+        # if batch_idx == 0:
 
-            first_img_in_batch = x[0]
+        #     first_img_in_batch = x[0]
 
-            kp0_state_0 = kp0_state[0]
-            kp1_state_0 = kp1_state[0]
-            kp2_state_0 = kp2_state[0]
-            kp3_state_0 = kp3_state[0]
-            kp4_state_0 = kp4_state[0]
-            kp5_state_0 = kp5_state[0]
-            kp6_state_0 = kp6_state[0]
-            kp7_state_0 = kp7_state[0]
-            kp8_state_0 = kp8_state[0]
-            kp9_state_0 = kp9_state[0]
-            kp10_state_0 = kp10_state[0]
-            kp11_state_0 = kp11_state[0]
-            kp12_state_0 = kp12_state[0]
-            kp13_state_0 = kp13_state[0]
-            kp14_state_0 = kp14_state[0]
-            kp15_state_0 = kp15_state[0]
+        #     kp0_state_0 = kp0_state[0]
+        #     kp1_state_0 = kp1_state[0]
+        #     kp2_state_0 = kp2_state[0]
+        #     kp3_state_0 = kp3_state[0]
+        #     kp4_state_0 = kp4_state[0]
+        #     kp5_state_0 = kp5_state[0]
+        #     kp6_state_0 = kp6_state[0]
+        #     kp7_state_0 = kp7_state[0]
+        #     kp8_state_0 = kp8_state[0]
+        #     kp9_state_0 = kp9_state[0]
+        #     kp10_state_0 = kp10_state[0]
+        #     kp11_state_0 = kp11_state[0]
+        #     kp12_state_0 = kp12_state[0]
+        #     kp13_state_0 = kp13_state[0]
+        #     kp14_state_0 = kp14_state[0]
+        #     kp15_state_0 = kp15_state[0]
 
-            kp_states_pred = [kp0_state_0, kp1_state_0, kp2_state_0, kp3_state_0, kp4_state_0, kp5_state_0, kp6_state_0, kp7_state_0, kp8_state_0, kp9_state_0, kp10_state_0, kp11_state_0, kp12_state_0, kp13_state_0, kp14_state_0, kp15_state_0]
+        #     kp_states_pred = [kp0_state_0, kp1_state_0, kp2_state_0, kp3_state_0, kp4_state_0, kp5_state_0, kp6_state_0, kp7_state_0, kp8_state_0, kp9_state_0, kp10_state_0, kp11_state_0, kp12_state_0, kp13_state_0, kp14_state_0, kp15_state_0]
 
-            # Convert the tensor to a PIL image
-            pil_image = ToPILImage()(first_img_in_batch)
+        #     # Convert the tensor to a PIL image
+        #     pil_image = ToPILImage()(first_img_in_batch)
 
-            # Add ground truth and predicted keypoints to the image
-            width, height = pil_image.size
-            if width != TennisCourtImageHelper.img_rescale_size[0] or height != TennisCourtImageHelper.img_rescale_size[1]:
-                raise Exception("Expected image size to be 224x224")
+        #     # Add ground truth and predicted keypoints to the image
+        #     width, height = pil_image.size
+        #     if width != TennisCourtImageHelper.img_rescale_size[0] or height != TennisCourtImageHelper.img_rescale_size[1]:
+        #         raise Exception("Expected image size to be 224x224")
             
-            # Convert the ground truth keypoint states to one-hot encoding for the first batch
-            kp_states_gt_first_batch_one_hot = torch.nn.functional.one_hot(kp_states[0], num_classes=3)
+        #     # Convert the ground truth keypoint states to one-hot encoding for the first batch
+        #     kp_states_gt_first_batch_one_hot = torch.nn.functional.one_hot(kp_states[0], num_classes=3)
             
-            # Show green keypoints for the ground truth and red keypoints for the predicted keypoints
-            # TODO: fix bug, it should be passing the ground truth in the first call to add_keypoints_to_image
-            pil_image_ground_truth = TennisCourtImageHelper.add_keypoints_to_image(pil_image, keypoints_xy_gt[0].tolist(), kp_states_gt_first_batch_one_hot, color=(0, 255, 0))
-            pil_image_predicted = TennisCourtImageHelper.add_keypoints_to_image(pil_image, keypoints_xy_pred[0].tolist(), kp_states_pred, color=(0, 0, 255))
+        #     # Show green keypoints for the ground truth and red keypoints for the predicted keypoints
+        #     # TODO: fix bug, it should be passing the ground truth in the first call to add_keypoints_to_image
+        #     pil_image_ground_truth = TennisCourtImageHelper.add_keypoints_to_image(pil_image, keypoints_xy_gt[0].tolist(), kp_states_gt_first_batch_one_hot, color=(0, 255, 0))
+        #     pil_image_predicted = TennisCourtImageHelper.add_keypoints_to_image(pil_image, keypoints_xy_pred[0].tolist(), kp_states_pred, color=(0, 0, 255))
             
-            wandb.log({f"train_images_epoch_{self.current_epoch}": [wandb.Image(pil_image_ground_truth), wandb.Image(pil_image_predicted)]})
+        #     wandb.log({f"train_images_epoch_{self.current_epoch}": [wandb.Image(pil_image_ground_truth), wandb.Image(pil_image_predicted)]})
 
         return loss
     
