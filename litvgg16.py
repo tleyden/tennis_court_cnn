@@ -41,7 +41,7 @@ class TennisCourtImageHelper:
         img_tensor = torchvision.transforms.ToTensor()(resized_image)
 
         # Normalize the image on the pretrained model's mean and std
-        normalized_image = torchvision.transforms.Normalize(
+        img_tensor = torchvision.transforms.Normalize(
             mean=[0.485, 0.456, 0.406],
             std=[0.229, 0.224, 0.225])(img_tensor)
 
