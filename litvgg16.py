@@ -134,10 +134,6 @@ class TennisCourtDataset(torch.utils.data.Dataset):
         if len(keypoints) != 16:
             raise Exception("Expected 16 keypoints")
         
-        # Disabled for now since we are not using the state
-        # Extract the x,y,state values into a nested list
-        # keypoint_tuples = [(kp.location[0], kp.location[1], kp.state) for kp in keypoints]
-
         # Extract the x,y values into a nested list
         keypoint_xy_tuples = [(kp.location[0], kp.location[1]) for kp in keypoints]
 
@@ -235,47 +231,30 @@ class LitVGG16(pl.LightningModule):
         current_lr = scheduler.get_last_lr()[0]        
         self.log("learning_rate", current_lr, prog_bar=True)
 
-        # # Log the first image of the first batch of each epoch
-        # if batch_idx == 0:
+        # Log the first image of the first batch of each epoch
+        if batch_idx == 0:
 
-        #     first_img_in_batch = x[0]
+            first_img_in_batch = x[0]
+            kp_states_pred_1st_batch = kp_states_pred_reshaped[0]
+            kp_states_gt_1st_batch = kp_states_gt_reshaped[0]
 
-        #     kp0_state_0 = kp0_state[0]
-        #     kp1_state_0 = kp1_state[0]
-        #     kp2_state_0 = kp2_state[0]
-        #     kp3_state_0 = kp3_state[0]
-        #     kp4_state_0 = kp4_state[0]
-        #     kp5_state_0 = kp5_state[0]
-        #     kp6_state_0 = kp6_state[0]
-        #     kp7_state_0 = kp7_state[0]
-        #     kp8_state_0 = kp8_state[0]
-        #     kp9_state_0 = kp9_state[0]
-        #     kp10_state_0 = kp10_state[0]
-        #     kp11_state_0 = kp11_state[0]
-        #     kp12_state_0 = kp12_state[0]
-        #     kp13_state_0 = kp13_state[0]
-        #     kp14_state_0 = kp14_state[0]
-        #     kp15_state_0 = kp15_state[0]
+            # Convert the tensor to a PIL image
+            pil_image = ToPILImage()(first_img_in_batch)
 
-        #     kp_states_pred = [kp0_state_0, kp1_state_0, kp2_state_0, kp3_state_0, kp4_state_0, kp5_state_0, kp6_state_0, kp7_state_0, kp8_state_0, kp9_state_0, kp10_state_0, kp11_state_0, kp12_state_0, kp13_state_0, kp14_state_0, kp15_state_0]
-
-        #     # Convert the tensor to a PIL image
-        #     pil_image = ToPILImage()(first_img_in_batch)
-
-        #     # Add ground truth and predicted keypoints to the image
-        #     width, height = pil_image.size
-        #     if width != TennisCourtImageHelper.img_rescale_size[0] or height != TennisCourtImageHelper.img_rescale_size[1]:
-        #         raise Exception("Expected image size to be 224x224")
+            # Add ground truth and predicted keypoints to the image
+            width, height = pil_image.size
+            if width != TennisCourtImageHelper.img_rescale_size[0] or height != TennisCourtImageHelper.img_rescale_size[1]:
+                raise Exception("Expected image size to be 224x224")
             
-        #     # Convert the ground truth keypoint states to one-hot encoding for the first batch
-        #     kp_states_gt_first_batch_one_hot = torch.nn.functional.one_hot(kp_states[0], num_classes=3)
+            # Convert the ground truth keypoint states to one-hot encoding for the first batch
+            kp_states_gt_first_batch_one_hot = torch.nn.functional.one_hot(kp_states_gt_1st_batch, num_classes=3)
             
-        #     # Show green keypoints for the ground truth and red keypoints for the predicted keypoints
-        #     # TODO: fix bug, it should be passing the ground truth in the first call to add_keypoints_to_image
-        #     pil_image_ground_truth = TennisCourtImageHelper.add_keypoints_to_image(pil_image, keypoints_xy_gt[0].tolist(), kp_states_gt_first_batch_one_hot, color=(0, 255, 0))
-        #     pil_image_predicted = TennisCourtImageHelper.add_keypoints_to_image(pil_image, keypoints_xy_pred[0].tolist(), kp_states_pred, color=(0, 0, 255))
+            # Show green keypoints for the ground truth and red keypoints for the predicted keypoints
+            # TODO: fix bug, it should be passing the ground truth in the first call to add_keypoints_to_image
+            pil_image_ground_truth = TennisCourtImageHelper.add_keypoints_to_image(pil_image, keypoints_xy_gt[0].tolist(), kp_states_gt_first_batch_one_hot, color=(0, 255, 0))
+            pil_image_predicted = TennisCourtImageHelper.add_keypoints_to_image(pil_image, keypoints_xy_pred[0].tolist(), kp_states_pred_1st_batch, color=(0, 0, 255))
             
-        #     wandb.log({f"train_images_epoch_{self.current_epoch}": [wandb.Image(pil_image_ground_truth), wandb.Image(pil_image_predicted)]})
+            wandb.log({f"train_images_epoch_{self.current_epoch}": [wandb.Image(pil_image_ground_truth), wandb.Image(pil_image_predicted)]})
 
         return loss
     
