@@ -40,12 +40,12 @@ class TennisCourtImageHelper:
         # Convert the image to a tensor
         img_tensor = torchvision.transforms.ToTensor()(resized_image)
 
-        # Normalize the image on the pretrained model's mean and std
-        img_tensor = torchvision.transforms.Normalize(
+        # Normalize the image on the pretrained model;s mean and std
+        img_tensor_normalized = torchvision.transforms.Normalize(
             mean=[0.485, 0.456, 0.406],
             std=[0.229, 0.224, 0.225])(img_tensor)
 
-        return img_tensor, (width, height)
+        return img_tensor_normalized, img_tensor, (width, height)
     
     @staticmethod
     def rescale_keypoint_coordinates(keypoints: List[tuple[float, float]], orig_size: tuple[int, int], rescaled_size: tuple[int, int]) -> List:
@@ -67,6 +67,10 @@ class TennisCourtImageHelper:
     
     @staticmethod
     def add_keypoints_to_image(pil_image: Image, flattened_keypoints: List[float], kp_states_pred: List[Tensor], color: tuple[int]) -> Image:
+
+        # The kp states should be a tensor of shape (16, 3).  Each keypoint has a visibility state of 0, 1, or 2, which is one-hot encoded 
+        # into a tensor of shape (3). 
+        assert kp_states_pred.shape == (16, 3)
 
         # Convert each float -> int
         flattened_keypoints = [int(round(kp)) for kp in flattened_keypoints]
@@ -125,7 +129,7 @@ class TennisCourtDataset(torch.utils.data.Dataset):
         capture_img_file_path = f"sequence.{sequence}/{capture.filename}"
 
         # Load the image and convert it to the appropriate tensor
-        img_tensor, img_size = TennisCourtImageHelper.imagepath2tensor(self.data_path, capture_img_file_path, TennisCourtImageHelper.img_rescale_size)
+        img_tensor, img_tensor_non_normalized, img_size = TennisCourtImageHelper.imagepath2tensor(self.data_path, capture_img_file_path, TennisCourtImageHelper.img_rescale_size)
 
         # Get a reference to the keypoint annotations
         annotations = capture.annotations
@@ -154,7 +158,7 @@ class TennisCourtDataset(torch.utils.data.Dataset):
         keypoint_states = [kp.state for kp in keypoints]
         keypoint_states_tensor = torch.tensor(keypoint_states, dtype=torch.long)
         
-        return img_tensor, keypoints_tensor, keypoint_states_tensor
+        return img_tensor, img_tensor_non_normalized, keypoints_tensor, keypoint_states_tensor
 
 
 
@@ -213,7 +217,7 @@ class LitVGG16(pl.LightningModule):
         return keypoints_xy, kp_state_preds
     
     def training_step(self, batch, batch_idx):
-        x, keypoints_xy_gt, kp_states_gt = batch
+        x, img_non_normalized, keypoints_xy_gt, kp_states_gt = batch
         keypoints_xy_pred, kp_states_pred = self(x)
         keypoints_xy_loss = torch.nn.functional.mse_loss(keypoints_xy_pred, keypoints_xy_gt)
 
@@ -234,9 +238,9 @@ class LitVGG16(pl.LightningModule):
         # Log the first image of the first batch of each epoch
         if batch_idx == 0:
 
-            first_img_in_batch = x[0]
-            kp_states_pred_1st_batch = kp_states_pred_reshaped[0]
-            kp_states_gt_1st_batch = kp_states_gt_reshaped[0]
+            first_img_in_batch = img_non_normalized[0]
+            kp_states_pred_1st_batch = kp_states_pred[0]
+            kp_states_gt_1st_batch = kp_states_gt[0]
 
             # Convert the tensor to a PIL image
             pil_image = ToPILImage()(first_img_in_batch)
@@ -248,6 +252,9 @@ class LitVGG16(pl.LightningModule):
             
             # Convert the ground truth keypoint states to one-hot encoding for the first batch
             kp_states_gt_first_batch_one_hot = torch.nn.functional.one_hot(kp_states_gt_1st_batch, num_classes=3)
+
+            # Reshape the predicted keypoint states to be 16x3
+            kp_states_pred_1st_batch = kp_states_pred_1st_batch.view(16, 3)
             
             # Show green keypoints for the ground truth and red keypoints for the predicted keypoints
             # TODO: fix bug, it should be passing the ground truth in the first call to add_keypoints_to_image
