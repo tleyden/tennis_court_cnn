@@ -15,6 +15,8 @@ from typing import List
 from torchvision.transforms import ToPILImage
 import cv2
 import numpy as np
+from sklearn.model_selection import train_test_split
+
 
 class TennisCourtImageHelper:
 
@@ -216,6 +218,20 @@ class LitVGG16(pl.LightningModule):
 
         return keypoints_xy, kp_state_preds
     
+    def validation_step(self, batch, batch_idx):
+        x, img_non_normalized, keypoints_xy_gt, kp_states_gt = batch
+        keypoints_xy_pred, kp_states_pred = self(x)
+        keypoints_xy_loss = torch.nn.functional.mse_loss(keypoints_xy_pred, keypoints_xy_gt)
+
+        kp_states_pred_reshaped = kp_states_pred.view(-1, 3)
+        kp_states_gt_reshaped = kp_states_gt.view(-1)
+
+        kp_loss = torch.nn.functional.cross_entropy(kp_states_pred_reshaped, kp_states_gt_reshaped)
+
+        loss = keypoints_xy_loss + kp_loss
+
+        self.log('val_loss', loss, prog_bar=True)
+
     def training_step(self, batch, batch_idx):
         x, img_non_normalized, keypoints_xy_gt, kp_states_gt = batch
         keypoints_xy_pred, kp_states_pred = self(x)
@@ -281,24 +297,11 @@ class LitVGG16(pl.LightningModule):
     
 if __name__ == "__main__":
 
-    # Datasets option 1 - give it a list of source dirs for train, and a list of source dirs for validation + test
-    # 
-    #   This could make it easy to have separate tennis courts for training vs validation
-    #   
-    # Dataset option 2 - give it a single source dir for train, and it will look for subdirs of that dir.  Ditto for validation + test
-    # 
-    #   
-    # Dataset option 3 - write a script that can merge datasets together, and then pass that merged dataset to the dataloader
-    # 
-    # Dataset option 4 - create a dictionary that contains the mapping of source dirs to train, validation, test.  It could also 
-    #                    treat certain directories as being both training and validation - like the map could specify a directory and
-    #                    then say "use 80% of the images in this directory for training, and 20% for validation"
-
     # Define cli args
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "train_data_path", 
-        default="/Users/tleyden/Projects/SwingvisionClone/TennisCourtSyntheticDatasets",  # missing corners
+        "train_val_data_path", 
+        default="/Users/tleyden/Projects/SwingvisionClone/TennisCourtSyntheticDatasets/train_val",  # missing corners
         nargs='?',
         help="Path to the data directory"
     )
@@ -312,23 +315,29 @@ if __name__ == "__main__":
     
     # Parse cli args
     args = parser.parse_args()
-    train_data_path = args.train_data_path
+    train_val_data_path = args.train_val_data_path
     num_epochs = int(args.num_epochs)
 
     # The training data path should contain one or more solo_ subdirectories
-    train_solo_dirs = [os.path.join(train_data_path, d) for d in os.listdir(train_data_path) if d.startswith("solo_")]
+    train_solo_dirs = [os.path.join(train_val_data_path, d) for d in os.listdir(train_val_data_path) if d.startswith("solo_")]
     if len(train_solo_dirs) == 0:
-        raise Exception(f"Expected to find one or more solo_ subdirectories in {train_data_path}")
+        raise Exception(f"Expected to find one or more solo_ subdirectories in {train_val_data_path}")
 
     dataset = TennisCourtDataset(data_paths=train_solo_dirs)
 
-    # Create the dataloader and specify the batch size
+    train_dataset, val_dataset = train_test_split(dataset, test_size=0.2, random_state=42)
+
+    # Create the train and validation dataloaders
     train_loader = utils.data.DataLoader(
-        dataset, 
+        train_dataset, 
         batch_size=32, 
         shuffle=True
     )
-    
+    val_loader = utils.data.DataLoader(
+        val_dataset, 
+        batch_size=32
+    )
+
     # Create the lightning module
     litvgg16 = LitVGG16(num_epochs=num_epochs)
 
@@ -344,10 +353,17 @@ if __name__ == "__main__":
         mode='min'  # 'min' or 'max' depending on the monitored metric
     )
 
+    # Create the trainer
     trainer = pl.Trainer(
         # callbacks=[checkpoint_callback], # disable saving checkoints, taking up too much space 
         max_epochs=num_epochs, 
         logger=wandb_logger, 
         log_every_n_steps=10    # This is only temporarily needed until we train on more data
     )
-    trainer.fit(model=litvgg16, train_dataloaders=train_loader)
+    
+    # Train the model
+    trainer.fit(
+        model=litvgg16, 
+        train_dataloaders=train_loader, 
+        val_dataloaders=val_loader
+    )
