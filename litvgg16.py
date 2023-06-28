@@ -233,11 +233,23 @@ class LitVGG16(pl.LightningModule):
         return loss, (keypoints_xy_pred, kp_states_pred)
 
     def validation_step(self, batch, batch_idx):
-        x, _, keypoints_xy_gt, kp_states_gt = batch
+        x, img_non_normalized, keypoints_xy_gt, kp_states_gt = batch
 
-        loss, _ = self.calculate_loss(x, keypoints_xy_gt, kp_states_gt)
+        loss, (keypoints_xy_pred, kp_states_pred) = self.calculate_loss(x, keypoints_xy_gt, kp_states_gt)
 
         self.log('val_loss', loss, prog_bar=True)
+
+        # Log the first image of the first batch of each epoch
+        if batch_idx == 0:
+
+            self.superimpose_keypoints(
+                img_non_normalized, 
+                kp_states_pred, 
+                kp_states_gt, 
+                keypoints_xy_gt, 
+                keypoints_xy_pred, 
+                log_prefix="val_images_epoch"
+            )
 
     def training_step(self, batch, batch_idx):
         x, img_non_normalized, keypoints_xy_gt, kp_states_gt = batch
@@ -252,31 +264,6 @@ class LitVGG16(pl.LightningModule):
 
         # Log the first image of the first batch of each epoch
         if batch_idx == 0:
-
-            # first_img_in_batch = img_non_normalized[0]
-            # kp_states_pred_1st_batch = kp_states_pred[0]
-            # kp_states_gt_1st_batch = kp_states_gt[0]
-
-            # # Convert the tensor to a PIL image
-            # pil_image = ToPILImage()(first_img_in_batch)
-
-            # # Add ground truth and predicted keypoints to the image
-            # width, height = pil_image.size
-            # if width != TennisCourtImageHelper.img_rescale_size[0] or height != TennisCourtImageHelper.img_rescale_size[1]:
-            #     raise Exception("Expected image size to be 224x224")
-            
-            # # Convert the ground truth keypoint states to one-hot encoding for the first batch
-            # kp_states_gt_first_batch_one_hot = torch.nn.functional.one_hot(kp_states_gt_1st_batch, num_classes=3)
-
-            # # Reshape the predicted keypoint states to be 16x3
-            # kp_states_pred_1st_batch = kp_states_pred_1st_batch.view(16, 3)
-            
-            # # Show green keypoints for the ground truth and red keypoints for the predicted keypoints
-            # # TODO: fix bug, it should be passing the ground truth in the first call to add_keypoints_to_image
-            # pil_image_ground_truth = TennisCourtImageHelper.add_keypoints_to_image(pil_image, keypoints_xy_gt[0].tolist(), kp_states_gt_first_batch_one_hot, color=(0, 255, 0))
-            # pil_image_predicted = TennisCourtImageHelper.add_keypoints_to_image(pil_image, keypoints_xy_pred[0].tolist(), kp_states_pred_1st_batch, color=(0, 0, 255))
-            
-            # wandb.log({f"train_images_epoch_{self.current_epoch}": [wandb.Image(pil_image_ground_truth), wandb.Image(pil_image_predicted)]})
 
             self.superimpose_keypoints(
                 img_non_normalized, 
