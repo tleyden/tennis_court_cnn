@@ -104,21 +104,28 @@ class TennisCourtImageHelper:
     
 class TennisCourtDataset(torch.utils.data.Dataset):
 
-    def __init__(self, data_path, transform=None):
+    def __init__(self, data_paths: List[str], transform=None):
         
-        self.data_path = data_path
+        # self.data_paths = data_paths
 
-        solo = Solo(data_path=data_path)
+        self.solo_frames = []
+        
+        for data_path in data_paths:
+            solo = Solo(data_path=data_path)
+            for frame in solo.frames():
+                self.solo_frames.append((frame, data_path))
+
+        # solo = Solo(data_path=data_path)
 
         # Preload all frames to allow for random access
-        self.solo_frames = [frame for frame in solo.frames()]
+        #self.solo_frames = [frame for frame in solo.frames()]
 
     def __len__(self):
         return len(self.solo_frames)
 
     def __getitem__(self, idx):
         
-        solo_frame = self.solo_frames[idx]
+        solo_frame, data_path = self.solo_frames[idx]
 
         # Each frame has a list of captures, we will just use the first one
         capture = solo_frame.captures[0]
@@ -129,7 +136,7 @@ class TennisCourtDataset(torch.utils.data.Dataset):
         capture_img_file_path = f"sequence.{sequence}/{capture.filename}"
 
         # Load the image and convert it to the appropriate tensor
-        img_tensor, img_tensor_non_normalized, img_size = TennisCourtImageHelper.imagepath2tensor(self.data_path, capture_img_file_path, TennisCourtImageHelper.img_rescale_size)
+        img_tensor, img_tensor_non_normalized, img_size = TennisCourtImageHelper.imagepath2tensor(data_path, capture_img_file_path, TennisCourtImageHelper.img_rescale_size)
 
         # Get a reference to the keypoint annotations
         annotations = capture.annotations
@@ -202,16 +209,15 @@ class LitVGG16(pl.LightningModule):
             nn.Linear(4096, num_out_features)
         )
 
+        # There are 16 keypoints to detect, each keypoint having 3 possible states (see definition above)
         self.kp_states = nn.Linear(25088, 16 * 3)
+
         print(self.vgg16)
 
     def forward(self, x):
         vgg_features = self.vgg16(x)
         keypoints_xy = self.continuous_output(vgg_features)
 
-        # TODO: switch to arrays instead of separate variables
-        # TODO: can this use multi-class loss? 
-        # TODO: if keeping 16 heads, use a module list instead of separate variables 
         kp_state_preds = self.kp_states(vgg_features)
 
         return keypoints_xy, kp_state_preds
@@ -281,6 +287,19 @@ class LitVGG16(pl.LightningModule):
     
 if __name__ == "__main__":
 
+    # Datasets option 1 - give it a list of source dirs for train, and a list of source dirs for validation + test
+    # 
+    #   This could make it easy to have separate tennis courts for training vs validation
+    #   
+    # Dataset option 2 - give it a single source dir for train, and it will look for subdirs of that dir.  Ditto for validation + test
+    # 
+    #   
+    # Dataset option 3 - write a script that can merge datasets together, and then pass that merged dataset to the dataloader
+    # 
+    # Dataset option 4 - create a dictionary that contains the mapping of source dirs to train, validation, test.  It could also 
+    #                    treat certain directories as being both training and validation - like the map could specify a directory and
+    #                    then say "use 80% of the images in this directory for training, and 20% for validation"
+
     # Define cli args
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -303,7 +322,7 @@ if __name__ == "__main__":
     data_path = args.data_path
     num_epochs = int(args.num_epochs)
 
-    dataset = TennisCourtDataset(data_path=data_path)
+    dataset = TennisCourtDataset(data_paths=[data_path])
 
     # Create the dataloader and specify the batch size
     train_loader = utils.data.DataLoader(
