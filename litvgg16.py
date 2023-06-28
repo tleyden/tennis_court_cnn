@@ -106,19 +106,13 @@ class TennisCourtDataset(torch.utils.data.Dataset):
 
     def __init__(self, data_paths: List[str], transform=None):
         
-        # self.data_paths = data_paths
-
         self.solo_frames = []
-        
+
+        # Preload all frames to allow for random access
         for data_path in data_paths:
             solo = Solo(data_path=data_path)
             for frame in solo.frames():
                 self.solo_frames.append((frame, data_path))
-
-        # solo = Solo(data_path=data_path)
-
-        # Preload all frames to allow for random access
-        #self.solo_frames = [frame for frame in solo.frames()]
 
     def __len__(self):
         return len(self.solo_frames)
@@ -303,9 +297,8 @@ if __name__ == "__main__":
     # Define cli args
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "data_path", 
-        # default="/Users/tleyden/Library/Application Support/DefaultCompany/TennisCourt/solo_19",
-        default="/Users/tleyden/Library/Application Support/DefaultCompany/TennisCourt/solo_34",  # missing corners
+        "train_data_path", 
+        default="/Users/tleyden/Projects/SwingvisionClone/TennisCourtSyntheticDatasets",  # missing corners
         nargs='?',
         help="Path to the data directory"
     )
@@ -319,10 +312,15 @@ if __name__ == "__main__":
     
     # Parse cli args
     args = parser.parse_args()
-    data_path = args.data_path
+    train_data_path = args.train_data_path
     num_epochs = int(args.num_epochs)
 
-    dataset = TennisCourtDataset(data_paths=[data_path])
+    # The training data path should contain one or more solo_ subdirectories
+    train_solo_dirs = [os.path.join(train_data_path, d) for d in os.listdir(train_data_path) if d.startswith("solo_")]
+    if len(train_solo_dirs) == 0:
+        raise Exception(f"Expected to find one or more solo_ subdirectories in {train_data_path}")
+
+    dataset = TennisCourtDataset(data_paths=train_solo_dirs)
 
     # Create the dataloader and specify the batch size
     train_loader = utils.data.DataLoader(
