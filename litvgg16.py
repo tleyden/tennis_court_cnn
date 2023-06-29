@@ -176,19 +176,20 @@ class LitVGG16(pl.LightningModule):
 
         super().__init__()
 
-        self.model_type = "vgg16"
+        self.model_type = "resnet50"
+        self.use_pretrained = False
 
         self.num_epochs = num_epochs
 
         if self.model_type == "vgg16":
         
             # Create a VGG16 network
-            self.backbone = torch.hub.load('pytorch/vision:v0.6.0', 'vgg16', pretrained=True)
+            self.backbone = torch.hub.load('pytorch/vision:v0.6.0', 'vgg16', pretrained=self.use_pretrained)
         
         elif self.model_type == "resnet50":
 
             # Create a resnet50 network
-            self.backbone = torch.hub.load('pytorch/vision:v0.6.0', 'resnet50', pretrained=True)
+            self.backbone = torch.hub.load('pytorch/vision:v0.6.0', 'resnet50', pretrained=self.use_pretrained)
 
             # (avgpool): AdaptiveAvgPool2d(output_size=(1, 1))
             # (fc): Linear(in_features=2048, out_features=1000, bias=True)
@@ -208,8 +209,9 @@ class LitVGG16(pl.LightningModule):
         if self.model_type == "vgg16":
 
             # Freeze the weights of all the CNN layers
-            for param in self.backbone.features.parameters():
-                param.requires_grad = False
+            if self.use_pretrained:
+                for param in self.backbone.features.parameters():
+                    param.requires_grad = False
 
             # Redefine the classifier to remove the dropout layers, at least while trying to overfit the network
             self.backbone.classifier = nn.Identity()
@@ -230,8 +232,9 @@ class LitVGG16(pl.LightningModule):
         elif self.model_type == "resnet50":
 
             # Freeze the weights of all the CNN layers of the resnet50 network
-            for param in self.backbone.parameters():
-                param.requires_grad = False
+            if self.use_pretrained:
+                for param in self.backbone.parameters():
+                    param.requires_grad = False
 
             self.backbone.fc = nn.Identity()
 
