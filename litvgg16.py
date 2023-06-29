@@ -15,8 +15,10 @@ from typing import List
 from torchvision.transforms import ToPILImage
 import cv2
 import numpy as np
-from sklearn.model_selection import train_test_split
+# from sklearn.model_selection import train_test_split
 import random
+from torch.utils.data import random_split
+
 
 class TennisCourtImageHelper:
 
@@ -197,14 +199,18 @@ class LitVGG16(pl.LightningModule):
         # for name, param in self.vgg16.named_parameters():
         #     print(name, param.requires_grad)
 
+        print(self.vgg16.classifier)
+
         # Redefine the classifier to remove the dropout layers, at least while trying to overfit the network
         self.vgg16.classifier = nn.Identity()
 
         self.continuous_output = nn.Sequential(
             nn.Linear(25088, 4096),
             nn.ReLU(inplace=True),
+            nn.Dropout(p=0.5, inplace=False),
             nn.Linear(4096, 4096),
             nn.ReLU(inplace=True),
+            nn.Dropout(p=0.5, inplace=False),
             nn.Linear(4096, num_out_features)
         )
 
@@ -366,7 +372,20 @@ if __name__ == "__main__":
 
     dataset = TennisCourtDataset(data_paths=train_solo_dirs)
 
-    train_dataset, val_dataset = train_test_split(dataset, test_size=0.2, random_state=42)
+    # print("Splitting dataset into train/val..")
+    # train_dataset, val_dataset = train_test_split(dataset, test_size=0.2, random_state=42)
+    # print("Finished splitting dataset into train/val")
+
+    # Define the proportions for training and validation sets
+    train_ratio = 0.8  # 80% for training
+    val_ratio = 0.2   # 20% for validation
+
+    # Calculate the lengths of training and validation sets
+    train_size = int(train_ratio * len(dataset))
+    val_size = len(dataset) - train_size
+
+    # Use random_split to split the dataset
+    train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
 
     # Create the train and validation dataloaders
     train_loader = utils.data.DataLoader(
