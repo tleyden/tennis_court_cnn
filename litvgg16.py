@@ -86,8 +86,9 @@ class TennisCourtImageHelper:
         for i, keypoint_pair in enumerate(keypoint_pairs):
 
             kp_state_pred = kp_states_pred[i]
-            if torch.argmax(kp_state_pred).item() != 2:
-                # Skip any keypoints that are not visible.  State = 2 means visible
+            if torch.argmax(kp_state_pred).item() == 0:
+                # Skip any keypoints that are not visible.  
+                # State = 2 means fully visible, state = 1 means that it's visible but something might be occluding it, but it's still in the image
                 continue
 
             center_coordinates = keypoint_pair  # (x, y) coordinates of the center
