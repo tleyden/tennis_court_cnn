@@ -176,7 +176,7 @@ class LitVGG16(pl.LightningModule):
 
         super().__init__()
 
-        self.model_type = "resnet50"
+        self.model_type = "vgg16"
 
         self.num_epochs = num_epochs
 
