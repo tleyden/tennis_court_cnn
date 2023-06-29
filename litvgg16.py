@@ -16,7 +16,7 @@ from torchvision.transforms import ToPILImage
 import cv2
 import numpy as np
 from sklearn.model_selection import train_test_split
-
+import random
 
 class TennisCourtImageHelper:
 
@@ -233,13 +233,16 @@ class LitVGG16(pl.LightningModule):
         return loss, (keypoints_xy_pred, kp_states_pred)
 
     def validation_step(self, batch, batch_idx):
+
+        print("validation_step batch index: ", batch_idx)
+
         x, img_non_normalized, keypoints_xy_gt, kp_states_gt = batch
 
         loss, (keypoints_xy_pred, kp_states_pred) = self.calculate_loss(x, keypoints_xy_gt, kp_states_gt)
 
         self.log('val_loss', loss, prog_bar=True)
 
-        # Log the first image of the first batch of each epoch
+        # Log a random image of the first batch of each epoch
         if batch_idx == 0:
 
             self.superimpose_keypoints(
@@ -262,7 +265,7 @@ class LitVGG16(pl.LightningModule):
         current_lr = scheduler.get_last_lr()[0]        
         self.log("learning_rate", current_lr, prog_bar=True)
 
-        # Log the first image of the first batch of each epoch
+        # Log a random image of the first batch of each epoch
         if batch_idx == 0:
 
             self.superimpose_keypoints(
@@ -278,12 +281,16 @@ class LitVGG16(pl.LightningModule):
     
     def superimpose_keypoints(self, img_non_normalized, kp_states_pred, kp_states_gt, keypoints_xy_gt, keypoints_xy_pred, log_prefix="train_images_epoch"):
 
-        first_img_in_batch = img_non_normalized[0]
-        kp_states_pred_1st_batch = kp_states_pred[0]
-        kp_states_gt_1st_batch = kp_states_gt[0]
+        # Generate a random index within the batch size
+        batch_size = img_non_normalized.shape[0]
+        random_index = random.randint(0, batch_size - 1)
+
+        img = img_non_normalized[random_index]
+        kp_states_pred_random = kp_states_pred[random_index]
+        kp_states_gt_random = kp_states_gt[random_index]
 
         # Convert the tensor to a PIL image
-        pil_image = ToPILImage()(first_img_in_batch)
+        pil_image = ToPILImage()(img)
 
         # Add ground truth and predicted keypoints to the image
         width, height = pil_image.size
@@ -291,23 +298,23 @@ class LitVGG16(pl.LightningModule):
             raise Exception("Expected image size to be 224x224")
         
         # Convert the ground truth keypoint states to one-hot encoding for the first batch
-        kp_states_gt_first_batch_one_hot = torch.nn.functional.one_hot(kp_states_gt_1st_batch, num_classes=3)
+        kp_states_gt_first_batch_one_hot = torch.nn.functional.one_hot(kp_states_gt_random, num_classes=3)
 
         # Reshape the predicted keypoint states to be 16x3
-        kp_states_pred_1st_batch = kp_states_pred_1st_batch.view(16, 3)
+        kp_states_pred_random = kp_states_pred_random.view(16, 3)
         
         # Show green keypoints for the ground truth and red keypoints for the predicted keypoints
         # TODO: fix bug, it should be passing the ground truth in the first call to add_keypoints_to_image
         pil_image_ground_truth = TennisCourtImageHelper.add_keypoints_to_image(
             pil_image, 
-            keypoints_xy_gt[0].tolist(), 
+            keypoints_xy_gt[random_index].tolist(), 
             kp_states_gt_first_batch_one_hot, 
             color=(0, 255, 0)
         )
         pil_image_predicted = TennisCourtImageHelper.add_keypoints_to_image(
             pil_image, 
-            keypoints_xy_pred[0].tolist(), 
-            kp_states_pred_1st_batch, 
+            keypoints_xy_pred[random_index].tolist(), 
+            kp_states_pred_random, 
             color=(0, 0, 255)
         )
         
@@ -368,7 +375,8 @@ if __name__ == "__main__":
     )
     val_loader = utils.data.DataLoader(
         val_dataset, 
-        batch_size=32
+        batch_size=32,
+        shuffle=True  # Not strictly needed, but it helps when logging random visualation images to wandb
     )
 
     # Create the lightning module
