@@ -15,9 +15,9 @@ from typing import List
 from torchvision.transforms import ToPILImage
 import cv2
 import numpy as np
-# from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split
 import random
-from torch.utils.data import random_split
+import time
 
 
 class TennisCourtImageHelper:
@@ -372,31 +372,23 @@ if __name__ == "__main__":
 
     dataset = TennisCourtDataset(data_paths=train_solo_dirs)
 
-    # print("Splitting dataset into train/val..")
-    # train_dataset, val_dataset = train_test_split(dataset, test_size=0.2, random_state=42)
-    # print("Finished splitting dataset into train/val")
-
-    # Define the proportions for training and validation sets
-    train_ratio = 0.8  # 80% for training
-    val_ratio = 0.2   # 20% for validation
-
-    # Calculate the lengths of training and validation sets
-    train_size = int(train_ratio * len(dataset))
-    val_size = len(dataset) - train_size
-
-    # Use random_split to split the dataset
-    train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
+    
+    print("Splitting dataset into train/val..")
+    # Time how long the next function call takes
+    start_time = time.time()
+    train_dataset, val_dataset = train_test_split(dataset, test_size=0.2, random_state=42)
+    print(f"Finished splitting dataset into train/val in {time.time() - start_time} seconds")
 
     # Create the train and validation dataloaders
     train_loader = utils.data.DataLoader(
         train_dataset, 
         batch_size=32, 
-        shuffle=True
+        shuffle=True,
     )
     val_loader = utils.data.DataLoader(
         val_dataset, 
         batch_size=32,
-        shuffle=True  # Not strictly needed, but it helps when logging random visualation images to wandb
+        shuffle=True,  # This is wrong for a number of reasons, but it's a temporary workaround to log randomly sampled visualation images to wandb
     )
 
     # Create the lightning module
