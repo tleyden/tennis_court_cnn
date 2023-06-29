@@ -176,11 +176,23 @@ class LitVGG16(pl.LightningModule):
 
         super().__init__()
 
+        self.model_type = "resnet50"
+
         self.num_epochs = num_epochs
+
+        if self.model_type == "vgg16":
         
-        # Create a VGG16 network
-        self.vgg16 = torch.hub.load('pytorch/vision:v0.6.0', 'vgg16', pretrained=True)
+            # Create a VGG16 network
+            self.backbone = torch.hub.load('pytorch/vision:v0.6.0', 'vgg16', pretrained=True)
         
+        elif self.model_type == "resnet50":
+
+            # Create a resnet50 network
+            self.backbone = torch.hub.load('pytorch/vision:v0.6.0', 'resnet50', pretrained=True)
+
+            # (avgpool): AdaptiveAvgPool2d(output_size=(1, 1))
+            # (fc): Linear(in_features=2048, out_features=1000, bias=True)
+
         # There are 16 keypoints to detect, each keypoint having 3 atributtes:
         # 1. x coordinate
         # 2. y coordinate
@@ -188,42 +200,54 @@ class LitVGG16(pl.LightningModule):
         # TODO: maybe a better approach would be to use the normalized coordinates (0-1) and then multiply by the image size (with sigmoid activation)
         num_out_features = 16 * 2
 
-        # Replace the last layer of the VGG16 network with a linear layer
-        # self.vgg16.classifier[-1] = torch.nn.Linear(in_features=4096, out_features=num_out_features, bias=True)
-
-        # Freeze the weights of all the CNN layers
-        for param in self.vgg16.features.parameters():
-            param.requires_grad = False
 
         # # Verify that the weights are frozen
         # for name, param in self.vgg16.named_parameters():
         #     print(name, param.requires_grad)
 
-        print(self.vgg16.classifier)
+        if self.model_type == "vgg16":
 
-        # Redefine the classifier to remove the dropout layers, at least while trying to overfit the network
-        self.vgg16.classifier = nn.Identity()
+            # Freeze the weights of all the CNN layers
+            for param in self.backbone.features.parameters():
+                param.requires_grad = False
 
-        self.continuous_output = nn.Sequential(
-            nn.Linear(25088, 4096),
-            nn.ReLU(inplace=True),
-            nn.Dropout(p=0.5, inplace=False),
-            nn.Linear(4096, 4096),
-            nn.ReLU(inplace=True),
-            nn.Dropout(p=0.5, inplace=False),
-            nn.Linear(4096, num_out_features)
-        )
+            # Redefine the classifier to remove the dropout layers, at least while trying to overfit the network
+            self.backbone.classifier = nn.Identity()
 
-        # There are 16 keypoints to detect, each keypoint having 3 possible states (see definition above)
-        self.kp_states = nn.Linear(25088, 16 * 3)
+            self.continuous_output = nn.Sequential(
+                nn.Linear(25088, 4096),
+                nn.ReLU(inplace=True),
+                nn.Dropout(p=0.5, inplace=False),
+                nn.Linear(4096, 4096),
+                nn.ReLU(inplace=True),
+                nn.Dropout(p=0.5, inplace=False),
+                nn.Linear(4096, num_out_features)
+            )
 
-        print(self.vgg16)
+            # There are 16 keypoints to detect, each keypoint having 3 possible states (see definition above)
+            self.kp_states = nn.Linear(25088, 16 * 3)
+
+        elif self.model_type == "resnet50":
+
+            # Freeze the weights of all the CNN layers of the resnet50 network
+            for param in self.backbone.parameters():
+                param.requires_grad = False
+
+            self.backbone.fc = nn.Identity()
+
+            self.continuous_output = nn.Linear(2048, num_out_features)
+
+            self.kp_states = nn.Linear(2048, 16 * 3)
+
+
+        print(self.backbone)
 
     def forward(self, x):
-        vgg_features = self.vgg16(x)
-        keypoints_xy = self.continuous_output(vgg_features)
 
-        kp_state_preds = self.kp_states(vgg_features)
+        features = self.backbone(x)
+        keypoints_xy = self.continuous_output(features)
+
+        kp_state_preds = self.kp_states(features)
 
         return keypoints_xy, kp_state_preds
     
@@ -365,13 +389,15 @@ if __name__ == "__main__":
     train_val_data_path = args.train_val_data_path
     num_epochs = int(args.num_epochs)
 
+    # Create the lightning module
+    litvgg16 = LitVGG16(num_epochs=num_epochs)
+
     # The training data path should contain one or more solo_ subdirectories
     train_solo_dirs = [os.path.join(train_val_data_path, d) for d in os.listdir(train_val_data_path) if d.startswith("solo_")]
     if len(train_solo_dirs) == 0:
         raise Exception(f"Expected to find one or more solo_ subdirectories in {train_val_data_path}")
 
     dataset = TennisCourtDataset(data_paths=train_solo_dirs)
-
     
     print("Splitting dataset into train/val..")
     # Time how long the next function call takes
@@ -391,8 +417,7 @@ if __name__ == "__main__":
         shuffle=True,  # This is wrong for a number of reasons, but it's a temporary workaround to log randomly sampled visualation images to wandb
     )
 
-    # Create the lightning module
-    litvgg16 = LitVGG16(num_epochs=num_epochs)
+
 
     # Initialize wandb logger
     wandb_logger = WandbLogger(project="tennis_court_cnn")
