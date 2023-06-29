@@ -112,10 +112,12 @@ class TennisCourtDataset(torch.utils.data.Dataset):
         self.solo_frames = []
 
         # Preload all frames to allow for random access
+        print("Preloading frames...")
         for data_path in data_paths:
             solo = Solo(data_path=data_path)
             for frame in solo.frames():
                 self.solo_frames.append((frame, data_path))
+        print("Done preloading frames")
 
     def __len__(self):
         return len(self.solo_frames)
@@ -234,8 +236,6 @@ class LitVGG16(pl.LightningModule):
         return loss, (keypoints_xy_pred, kp_states_pred)
 
     def validation_step(self, batch, batch_idx):
-
-        print("validation_step batch index: ", batch_idx)
 
         x, img_non_normalized, keypoints_xy_gt, kp_states_gt = batch
 
