@@ -22,7 +22,7 @@ import albumentations as A
 import torchvision.transforms.functional as TF
 import torchvision.transforms as transforms
 from torchvision.transforms import ToTensor
-
+import subprocess
 
 
 # Constants
@@ -499,7 +499,7 @@ if __name__ == "__main__":
     num_epochs = int(args.num_epochs)
 
     # Create the lightning module
-    model_type = resnet18
+    model_type = resnet50
     use_pretrained = False
     lr = 5e-3
     lr_min = 1e-4
@@ -527,23 +527,6 @@ if __name__ == "__main__":
         A.Cutout(), # CoarseDropout of the rectangular regions in the image
     ])
 
-    # transform = transforms.Compose([
-    #     transforms.RandomApply([
-    #             transforms.ColorJitter(
-    #                 brightness=0, 
-    #                 contrast=0.002, 
-    #                 saturation=0, 
-    #                 hue=0
-    #             ),
-    #     ], p=1.0),
-    # ]) 
-
-    # transform = transforms.ColorJitter(
-    #     brightness=0.005, 
-    #     contrast=0.005, 
-    #     saturation=0.005, 
-    #     hue=0.005
-    # )
 
     dataset = TennisCourtDataset(
         data_paths=train_solo_dirs, 
@@ -577,6 +560,8 @@ if __name__ == "__main__":
     wandb_logger.experiment.config["use_pretrained"] = use_pretrained
     wandb_logger.experiment.config["lr"] = lr
     wandb_logger.experiment.config["lr_min"] = lr_min
+    commit_hash = subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode('utf-8').strip()
+    wandb_logger.experiment.config["commit_hash"] = commit_hash
 
     # Define a checkpoint callback for saving the model
     checkpoint_callback = ModelCheckpoint(
