@@ -172,12 +172,9 @@ class TennisCourtDataset(torch.utils.data.Dataset):
 
 class LitVGG16(pl.LightningModule):
     
-    def __init__(self, num_epochs):
+    def __init__(self, num_epochs, model_type, use_pretrained):
 
         super().__init__()
-
-        self.model_type = "resnet50"
-        self.use_pretrained = False
 
         self.num_epochs = num_epochs
 
@@ -380,7 +377,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "train_val_data_path", 
-        default="/Users/tleyden/Projects/SwingvisionClone/TennisCourtSyntheticDatasets/train_val",  # missing corners
+        default="/Users/tleyden/Projects/SwingvisionClone/TennisCourtSyntheticDatasets/train_val_tiny",  # missing corners
         nargs='?',
         help="Path to the data directory"
     )
@@ -398,7 +395,13 @@ if __name__ == "__main__":
     num_epochs = int(args.num_epochs)
 
     # Create the lightning module
-    litvgg16 = LitVGG16(num_epochs=num_epochs)
+    model_type = "resnet50"
+    use_pretrained = False
+    litvgg16 = LitVGG16(
+        num_epochs=num_epochs,
+        model_type = model_type,
+        use_pretrained = use_pretrained
+    )
 
     # The training data path should contain one or more solo_ subdirectories
     train_solo_dirs = [os.path.join(train_val_data_path, d) for d in os.listdir(train_val_data_path) if d.startswith("solo_")]
@@ -425,10 +428,10 @@ if __name__ == "__main__":
         shuffle=True,  # This is wrong for a number of reasons, but it's a temporary workaround to log randomly sampled visualation images to wandb
     )
 
-
-
     # Initialize wandb logger
     wandb_logger = WandbLogger(project="tennis_court_cnn")
+    wandb_logger.experiment.config["model_type"] = model_type
+    wandb_logger.experiment.config["use_pretrained"] = use_pretrained
 
     # Define a checkpoint callback for saving the model
     checkpoint_callback = ModelCheckpoint(
