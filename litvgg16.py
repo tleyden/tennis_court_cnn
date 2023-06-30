@@ -517,7 +517,7 @@ if __name__ == "__main__":
         raise Exception(f"Expected to find one or more solo_ subdirectories in {train_val_data_path}")
 
     # Define the augmentations
-    # TODO: this is wrong, because it will apply augmentations to validation dataset as well
+    # NOTE: none of these change the geometry of the image, because that would change the ground truth keypoint locations
     transform = A.Compose([
         A.ChannelShuffle(),  # Randomly rearrange the channels of the input RGB image
         A.ColorJitter(),  # Randomly change brightness, contrast and saturation
@@ -525,8 +525,7 @@ if __name__ == "__main__":
         A.RandomGamma(),  # Randomly change the gamma of an image
         A.GaussianBlur(),  # Blur the input image using a Gaussian filter with a random kernel size
         A.Cutout(), # CoarseDropout of the rectangular regions in the image
-        A.ElasticTransform(),  # Elastic deformation of images as described in [Simard2003]
-        A.Rotate(10),
+                    # TODO: cutout should take into account the keytpoint visibility status
     ])
 
 
