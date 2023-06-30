@@ -526,6 +526,7 @@ if __name__ == "__main__":
         A.GaussianBlur(),  # Blur the input image using a Gaussian filter with a random kernel size
         A.Cutout(), # CoarseDropout of the rectangular regions in the image
         A.ElasticTransform(),  # Elastic deformation of images as described in [Simard2003]
+        A.Rotate(10),
     ])
 
 
