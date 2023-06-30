@@ -227,6 +227,8 @@ class LitVGG16(pl.LightningModule):
             )
 
             # There are 16 keypoints to detect, each keypoint having 3 possible states (see definition above)
+            # TODO: constrain these to two: visible and not visible.  I think the network is confused because
+            #  when training resnet50 from scratch, it can't even overfit the training set.
             self.kp_states = nn.Linear(25088, 16 * 3)
 
         elif self.model_type == "resnet50":
@@ -265,14 +267,14 @@ class LitVGG16(pl.LightningModule):
 
         kp_loss = torch.nn.functional.cross_entropy(kp_states_pred_reshaped, kp_states_gt_reshaped)
 
-        loss = keypoints_xy_loss + kp_loss
-        return loss, (keypoints_xy_pred, kp_states_pred)
+        return (keypoints_xy_loss, kp_loss), (keypoints_xy_pred, kp_states_pred)
 
     def validation_step(self, batch, batch_idx):
 
         x, img_non_normalized, keypoints_xy_gt, kp_states_gt = batch
 
-        loss, (keypoints_xy_pred, kp_states_pred) = self.calculate_loss(x, keypoints_xy_gt, kp_states_gt)
+        (keypoints_xy_loss, kp_loss), (keypoints_xy_pred, kp_states_pred) = self.calculate_loss(x, keypoints_xy_gt, kp_states_gt)
+        loss = keypoints_xy_loss + kp_loss
 
         self.log('val_loss', loss, prog_bar=True)
 
@@ -290,9 +292,12 @@ class LitVGG16(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         x, img_non_normalized, keypoints_xy_gt, kp_states_gt = batch
-        loss, (keypoints_xy_pred, kp_states_pred) = self.calculate_loss(x, keypoints_xy_gt, kp_states_gt)
+        (keypoints_xy_loss, kp_loss), (keypoints_xy_pred, kp_states_pred) = self.calculate_loss(x, keypoints_xy_gt, kp_states_gt)
+        loss = keypoints_xy_loss + kp_loss
 
         self.log('train_loss', loss, prog_bar=True)
+        self.log('train_xy_loss', keypoints_xy_loss)
+        self.log('train_visibility_loss', kp_loss)
 
         # Log the learning rate
         scheduler = self.lr_schedulers()
