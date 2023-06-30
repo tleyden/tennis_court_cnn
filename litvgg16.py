@@ -411,7 +411,7 @@ if __name__ == "__main__":
 
     # Create the lightning module
     model_type = resnet18
-    use_pretrained = False
+    use_pretrained = True
     litvgg16 = LitVGG16(
         num_epochs=num_epochs,
         model_type = model_type,
