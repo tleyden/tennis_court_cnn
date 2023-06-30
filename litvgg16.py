@@ -413,7 +413,7 @@ if __name__ == "__main__":
 
     # Create the lightning module
     model_type = resnet18
-    use_pretrained = True
+    use_pretrained = False
     lr = 5e-3
     lr_min = 1e-4
     litvgg16 = LitVGG16(
