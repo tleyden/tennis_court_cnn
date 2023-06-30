@@ -175,11 +175,13 @@ class TennisCourtDataset(torch.utils.data.Dataset):
 
 class LitVGG16(pl.LightningModule):
     
-    def __init__(self, num_epochs, model_type, use_pretrained):
+    def __init__(self, num_epochs, model_type, use_pretrained, lr, lr_min):
 
         super().__init__()
 
         self.num_epochs = num_epochs
+        self.lr = lr 
+        self.lr_min = lr_min
 
         if model_type == "vgg16":
         
@@ -374,13 +376,13 @@ class LitVGG16(pl.LightningModule):
 
     def configure_optimizers(self):
         
-        optimizer = optim.Adam(self.parameters(), lr=1e-3)
+        optimizer = optim.Adam(self.parameters(), lr=self.lr)
 
         # Define a learning rate scheduler
         scheduler = optim.lr_scheduler.CosineAnnealingLR(
             optimizer, 
             T_max=self.num_epochs, # The maximum number of iterations or epochs before the learning rate is reset. It determines the period of the cosine annealing schedule.
-            eta_min=1e-5 # The minimum learning rate. After reaching eta_min, the learning rate will no longer decrease.
+            eta_min=self.lr_min # The minimum learning rate. After reaching eta_min, the learning rate will no longer decrease.
         )
 
         return [optimizer], [scheduler]
@@ -410,12 +412,14 @@ if __name__ == "__main__":
     num_epochs = int(args.num_epochs)
 
     # Create the lightning module
-    model_type = resnet18
+    model_type = resnet50
     use_pretrained = True
     litvgg16 = LitVGG16(
         num_epochs=num_epochs,
         model_type = model_type,
-        use_pretrained = use_pretrained
+        use_pretrained = use_pretrained,
+        lr = 5e-3,
+        lr_min = 1e-4
     )
 
     # The training data path should contain one or more solo_ subdirectories
