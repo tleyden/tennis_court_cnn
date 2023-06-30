@@ -19,6 +19,9 @@ from sklearn.model_selection import train_test_split
 import random
 import time
 
+# Constants
+resnet50 = "resnet50"
+resnet18 = "resnet18"
 
 class TennisCourtImageHelper:
 
@@ -178,18 +181,18 @@ class LitVGG16(pl.LightningModule):
 
         self.num_epochs = num_epochs
 
-        if self.model_type == "vgg16":
+        if model_type == "vgg16":
         
             # Create a VGG16 network
-            self.backbone = torch.hub.load('pytorch/vision:v0.6.0', 'vgg16', pretrained=self.use_pretrained)
+            self.backbone = torch.hub.load('pytorch/vision:v0.6.0', 'vgg16', pretrained=use_pretrained)
         
-        elif self.model_type == "resnet50":
+        elif model_type == resnet18:
+            self.backbone = torch.hub.load('pytorch/vision:v0.6.0', 'resnet18', pretrained=use_pretrained)
 
-            # Create a resnet50 network
-            self.backbone = torch.hub.load('pytorch/vision:v0.6.0', 'resnet50', pretrained=self.use_pretrained)
+        elif model_type == resnet50:
+            self.backbone = torch.hub.load('pytorch/vision:v0.6.0', 'resnet50', pretrained=use_pretrained)
 
-            # (avgpool): AdaptiveAvgPool2d(output_size=(1, 1))
-            # (fc): Linear(in_features=2048, out_features=1000, bias=True)
+            print(self.backbone)
 
         # There are 16 keypoints to detect, each keypoint having 3 atributtes:
         # 1. x coordinate
@@ -198,15 +201,14 @@ class LitVGG16(pl.LightningModule):
         # TODO: maybe a better approach would be to use the normalized coordinates (0-1) and then multiply by the image size (with sigmoid activation)
         num_out_features = 16 * 2
 
-
         # # Verify that the weights are frozen
         # for name, param in self.vgg16.named_parameters():
         #     print(name, param.requires_grad)
 
-        if self.model_type == "vgg16":
+        if model_type == "vgg16":
 
             # Freeze the weights of all the CNN layers
-            if self.use_pretrained:
+            if use_pretrained:
                 for param in self.backbone.features.parameters():
                     param.requires_grad = False
 
@@ -228,10 +230,23 @@ class LitVGG16(pl.LightningModule):
             #  when training resnet50 from scratch, it can't even overfit the training set.
             self.kp_states = nn.Linear(25088, 16 * 3)
 
-        elif self.model_type == "resnet50":
+        elif model_type == resnet18:
 
             # Freeze the weights of all the CNN layers of the resnet50 network
-            if self.use_pretrained:
+            if use_pretrained:
+                for param in self.backbone.parameters():
+                    param.requires_grad = False
+
+            self.backbone.fc = nn.Identity()
+
+            self.continuous_output = nn.Linear(512, num_out_features)
+
+            self.kp_states = nn.Linear(512, 16 * 3)
+
+        elif model_type == resnet50:
+
+            # Freeze the weights of all the CNN layers of the resnet50 network
+            if use_pretrained:
                 for param in self.backbone.parameters():
                     param.requires_grad = False
 
@@ -395,7 +410,7 @@ if __name__ == "__main__":
     num_epochs = int(args.num_epochs)
 
     # Create the lightning module
-    model_type = "resnet50"
+    model_type = resnet18
     use_pretrained = False
     litvgg16 = LitVGG16(
         num_epochs=num_epochs,
