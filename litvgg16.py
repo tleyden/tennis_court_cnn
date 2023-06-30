@@ -519,11 +519,12 @@ if __name__ == "__main__":
     # Define the augmentations
     # TODO: this is wrong, because it will apply augmentations to validation dataset as well
     transform = A.Compose([
-        #A.ChannelShuffle(),  # Randomly rearrange the channels of the input RGB image
-        #A.ColorJitter(),  # Randomly change brightness, contrast and saturation
-        #A.RandomBrightnessContrast(),   # Adjust brightness and contrast randomly
-        #A.RandomGamma(),  # Randomly change the gamma of an image
-        #A.GaussianBlur(),  # Blur the input image using a Gaussian filter with a random kernel size
+        A.ChannelShuffle(),  # Randomly rearrange the channels of the input RGB image
+        A.ColorJitter(),  # Randomly change brightness, contrast and saturation
+        A.RandomBrightnessContrast(),   # Adjust brightness and contrast randomly
+        A.RandomGamma(),  # Randomly change the gamma of an image
+        A.GaussianBlur(),  # Blur the input image using a Gaussian filter with a random kernel size
+        A.Cutout(), # CoarseDropout of the rectangular regions in the image
     ])
 
     # transform = transforms.Compose([
