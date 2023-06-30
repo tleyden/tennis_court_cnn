@@ -21,6 +21,7 @@ import time
 import albumentations as A
 import torchvision.transforms.functional as TF
 import torchvision.transforms as transforms
+from torchvision.transforms import ToTensor
 
 
 
@@ -40,33 +41,59 @@ class TennisCourtImageHelper:
     def imagepath2tensor(data_path_root: str, image_path: str, rescale_to: tuple[int, int], transform) -> tuple[Tensor, tuple[int, int]]:
 
         # Load the image
-        image = Image.open(os.path.join(data_path_root, image_path))
-        width, height = image.size
+        image_fq_path = os.path.join(data_path_root, image_path)
+        
+        # Read an image with OpenCV
+        image = cv2.imread(image_fq_path, cv2.IMREAD_UNCHANGED)
 
-        # Convert the image from RGBA (alpha channel) to RGB
-        image = image.convert('RGB')
+        # By default OpenCV uses BGR color space for color images,
+        # so we need to convert the image to RGB color space.
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
-        # Resize image to 224x224
-        resized_image = image.resize(rescale_to, Image.LANCZOS)
+        # Get the image dimensions
+        height, width, _ = image.shape
 
-        # Convert the image to a tensor and return it as the unmodified image for display purposes
-        img_tensor_no_agumentation = torchvision.transforms.ToTensor()(resized_image)
+        # Check if the image has an alpha channel
+        if image.shape[2] == 4:
+            # Remove the alpha channel
+            image = image[:, :, :3]
+        
+        # Resize the image to 224x224
+        resized_image = cv2.resize(image, rescale_to)
 
-        # # Apply any additional transformations
-        # if transform is not None:
-        #     resized_image_np = np.array(resized_image)
-        #     resized_image_np = transform(image=resized_image_np)["image"]
+        return resized_image, (width, height)
 
-        # Convert the image to a tensor
-        img_tensor = torchvision.transforms.ToTensor()(resized_image)
+        # # By default OpenCV uses BGR color space for color images,
+        # # so we need to convert the image to RGB color space.
+        # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
-        # TODO: pass in a flag and only normalize if the flag is set
-        # Normalize the image on the pretrained model;s mean and std
-        img_tensor_normalized = torchvision.transforms.Normalize(
-            mean=[0.485, 0.456, 0.406],
-            std=[0.229, 0.224, 0.225])(img_tensor)
+        # image = Image.open(image_fq_path)
+        # width, height = image.size
 
-        return img_tensor_normalized, img_tensor_no_agumentation, (width, height)
+        # # Convert the image from RGBA (alpha channel) to RGB
+        # image = image.convert('RGB')
+
+        # # Resize image to 224x224
+        # resized_image = image.resize(rescale_to, Image.LANCZOS)
+
+        # # Convert the image to a tensor and return it as the unmodified image for display purposes
+        # img_tensor_no_agumentation = torchvision.transforms.ToTensor()(resized_image)
+
+        # # # Apply any additional transformations
+        # # if transform is not None:
+        # #     resized_image_np = np.array(resized_image)
+        # #     resized_image_np = transform(image=resized_image_np)["image"]
+
+        # # Convert the image to a tensor
+        # img_tensor = torchvision.transforms.ToTensor()(resized_image)
+
+        # # TODO: pass in a flag and only normalize if the flag is set
+        # # Normalize the image on the pretrained model;s mean and std
+        # img_tensor_normalized = torchvision.transforms.Normalize(
+        #     mean=[0.485, 0.456, 0.406],
+        #     std=[0.229, 0.224, 0.225])(img_tensor)
+
+        # return img_tensor_normalized, img_tensor_no_agumentation, (width, height)
     
     @staticmethod
     def rescale_keypoint_coordinates(keypoints: List[tuple[float, float]], orig_size: tuple[int, int], rescaled_size: tuple[int, int]) -> List:
@@ -134,20 +161,26 @@ class TennisCourtDatasetWrapper(torch.utils.data.Dataset):
         return len(self.dataset)
     
     def __getitem__(self, idx):
-        img_tensor, img_tensor_non_normalized, keypoints_tensor, keypoint_states_tensor = self.dataset[idx]
+
+        resized_image, keypoints_tensor, keypoint_states_tensor = self.dataset[idx]
+
+        img_tensor_non_normalized = torchvision.transforms.ToTensor()(resized_image)
 
         # Apply any additional transformations
         if self.transform is not None:
-            
-            # Convert the PyTorch tensor to a numpy array
-            image_np = TF.to_pil_image(img_tensor)
-            image_np = np.array(image_np)
+                        
+            # Apply the Albumentations transformation to the image
+            transformed = self.transform(image=resized_image)
 
-            transformed = transform(image=image_np)
-            augmented_image = transformed['image']
-            img_tensor = TF.to_tensor(augmented_image)
+            # Extract the transformed image
+            transformed_image = transformed['image']
 
-            # img_tensor = self.transform(img_tensor)
+            # Convert the transformed image to a PyTorch tensor
+            img_tensor = ToTensor()(transformed_image)
+
+        else:
+
+            img_tensor = torchvision.transforms.ToTensor()(resized_image)
 
         return img_tensor, img_tensor_non_normalized, keypoints_tensor, keypoint_states_tensor
 
@@ -183,7 +216,7 @@ class TennisCourtDataset(torch.utils.data.Dataset):
         capture_img_file_path = f"sequence.{sequence}/{capture.filename}"
 
         # Load the image and convert it to the appropriate tensor
-        img_tensor, img_tensor_non_normalized, img_size = TennisCourtImageHelper.imagepath2tensor(
+        resized_image, img_size = TennisCourtImageHelper.imagepath2tensor(
             data_path, 
             capture_img_file_path, 
             TennisCourtImageHelper.img_rescale_size, 
@@ -217,7 +250,7 @@ class TennisCourtDataset(torch.utils.data.Dataset):
         keypoint_states = [kp.state for kp in keypoints]
         keypoint_states_tensor = torch.tensor(keypoint_states, dtype=torch.long)
         
-        return img_tensor, img_tensor_non_normalized, keypoints_tensor, keypoint_states_tensor
+        return resized_image, keypoints_tensor, keypoint_states_tensor
 
 
 
@@ -523,6 +556,7 @@ if __name__ == "__main__":
     print(f"Finished splitting dataset into train/val in {time.time() - start_time} seconds")
 
     train_dataset_wrapped = TennisCourtDatasetWrapper(train_dataset, transform=transform)
+    val_dataset_wrapped = TennisCourtDatasetWrapper(val_dataset, transform=transform)
 
     # Create the train and validation dataloaders
     train_loader = utils.data.DataLoader(
@@ -531,7 +565,7 @@ if __name__ == "__main__":
         shuffle=True,
     )
     val_loader = utils.data.DataLoader(
-        val_dataset, 
+        val_dataset_wrapped, 
         batch_size=32,
         shuffle=True,  # This is wrong for a number of reasons, but it's a temporary workaround to log randomly sampled visualation images to wandb
     )
