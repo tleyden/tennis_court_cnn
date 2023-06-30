@@ -18,6 +18,11 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 import random
 import time
+import albumentations as A
+import torchvision.transforms.functional as TF
+import torchvision.transforms as transforms
+
+
 
 # Constants
 resnet50 = "resnet50"
@@ -32,7 +37,7 @@ class TennisCourtImageHelper:
         pass
 
     @staticmethod
-    def imagepath2tensor(data_path_root: str, image_path: str, rescale_to: tuple[int, int]) -> tuple[Tensor, tuple[int, int]]:
+    def imagepath2tensor(data_path_root: str, image_path: str, rescale_to: tuple[int, int], transform) -> tuple[Tensor, tuple[int, int]]:
 
         # Load the image
         image = Image.open(os.path.join(data_path_root, image_path))
@@ -44,15 +49,24 @@ class TennisCourtImageHelper:
         # Resize image to 224x224
         resized_image = image.resize(rescale_to, Image.LANCZOS)
 
+        # Convert the image to a tensor and return it as the unmodified image for display purposes
+        img_tensor_no_agumentation = torchvision.transforms.ToTensor()(resized_image)
+
+        # # Apply any additional transformations
+        # if transform is not None:
+        #     resized_image_np = np.array(resized_image)
+        #     resized_image_np = transform(image=resized_image_np)["image"]
+
         # Convert the image to a tensor
         img_tensor = torchvision.transforms.ToTensor()(resized_image)
 
+        # TODO: pass in a flag and only normalize if the flag is set
         # Normalize the image on the pretrained model;s mean and std
         img_tensor_normalized = torchvision.transforms.Normalize(
             mean=[0.485, 0.456, 0.406],
             std=[0.229, 0.224, 0.225])(img_tensor)
 
-        return img_tensor_normalized, img_tensor, (width, height)
+        return img_tensor_normalized, img_tensor_no_agumentation, (width, height)
     
     @staticmethod
     def rescale_keypoint_coordinates(keypoints: List[tuple[float, float]], orig_size: tuple[int, int], rescaled_size: tuple[int, int]) -> List:
@@ -109,12 +123,41 @@ class TennisCourtImageHelper:
 
         return pil_image
          
+
+class TennisCourtDatasetWrapper(torch.utils.data.Dataset):
+
+    def __init__(self, dataset, transform=None):
+        self.dataset = dataset
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.dataset)
     
+    def __getitem__(self, idx):
+        img_tensor, img_tensor_non_normalized, keypoints_tensor, keypoint_states_tensor = self.dataset[idx]
+
+        # Apply any additional transformations
+        if self.transform is not None:
+            
+            # Convert the PyTorch tensor to a numpy array
+            image_np = TF.to_pil_image(img_tensor)
+            image_np = np.array(image_np)
+
+            transformed = transform(image=image_np)
+            augmented_image = transformed['image']
+            img_tensor = TF.to_tensor(augmented_image)
+
+            # img_tensor = self.transform(img_tensor)
+
+        return img_tensor, img_tensor_non_normalized, keypoints_tensor, keypoint_states_tensor
+
+
 class TennisCourtDataset(torch.utils.data.Dataset):
 
     def __init__(self, data_paths: List[str], transform=None):
         
         self.solo_frames = []
+        self.transform = transform
 
         # Preload all frames to allow for random access
         print("Preloading frames...")
@@ -140,7 +183,12 @@ class TennisCourtDataset(torch.utils.data.Dataset):
         capture_img_file_path = f"sequence.{sequence}/{capture.filename}"
 
         # Load the image and convert it to the appropriate tensor
-        img_tensor, img_tensor_non_normalized, img_size = TennisCourtImageHelper.imagepath2tensor(data_path, capture_img_file_path, TennisCourtImageHelper.img_rescale_size)
+        img_tensor, img_tensor_non_normalized, img_size = TennisCourtImageHelper.imagepath2tensor(
+            data_path, 
+            capture_img_file_path, 
+            TennisCourtImageHelper.img_rescale_size, 
+            self.transform
+        )
 
         # Get a reference to the keypoint annotations
         annotations = capture.annotations
@@ -330,6 +378,12 @@ class LitVGG16(pl.LightningModule):
                 log_prefix="train_images_epoch"
             )
 
+            # Log an augmented image to wandb
+            batch_size = img_non_normalized.shape[0]
+            random_index = random.randint(0, batch_size - 1)
+            wandb.log({f"aug_train_image_epoch_{self.current_epoch}": [wandb.Image(x[random_index])]})
+
+
         return loss
     
     def superimpose_keypoints(self, img_non_normalized, kp_states_pred, kp_states_gt, keypoints_xy_gt, keypoints_xy_pred, log_prefix="train_images_epoch"):
@@ -429,7 +483,38 @@ if __name__ == "__main__":
     if len(train_solo_dirs) == 0:
         raise Exception(f"Expected to find one or more solo_ subdirectories in {train_val_data_path}")
 
-    dataset = TennisCourtDataset(data_paths=train_solo_dirs)
+    # Define the augmentations
+    # TODO: this is wrong, because it will apply augmentations to validation dataset as well
+    transform = A.Compose([
+        #A.ChannelShuffle(),  # Randomly rearrange the channels of the input RGB image
+        #A.ColorJitter(),  # Randomly change brightness, contrast and saturation
+        #A.RandomBrightnessContrast(),   # Adjust brightness and contrast randomly
+        #A.RandomGamma(),  # Randomly change the gamma of an image
+        #A.GaussianBlur(),  # Blur the input image using a Gaussian filter with a random kernel size
+    ])
+
+    # transform = transforms.Compose([
+    #     transforms.RandomApply([
+    #             transforms.ColorJitter(
+    #                 brightness=0, 
+    #                 contrast=0.002, 
+    #                 saturation=0, 
+    #                 hue=0
+    #             ),
+    #     ], p=1.0),
+    # ]) 
+
+    # transform = transforms.ColorJitter(
+    #     brightness=0.005, 
+    #     contrast=0.005, 
+    #     saturation=0.005, 
+    #     hue=0.005
+    # )
+
+    dataset = TennisCourtDataset(
+        data_paths=train_solo_dirs, 
+        # transform=transform
+    )
     
     print("Splitting dataset into train/val..")
     # Time how long the next function call takes
@@ -437,9 +522,11 @@ if __name__ == "__main__":
     train_dataset, val_dataset = train_test_split(dataset, test_size=0.2, random_state=42)
     print(f"Finished splitting dataset into train/val in {time.time() - start_time} seconds")
 
+    train_dataset_wrapped = TennisCourtDatasetWrapper(train_dataset, transform=transform)
+
     # Create the train and validation dataloaders
     train_loader = utils.data.DataLoader(
-        train_dataset, 
+        train_dataset_wrapped, 
         batch_size=32, 
         shuffle=True,
     )
