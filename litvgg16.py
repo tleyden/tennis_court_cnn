@@ -414,12 +414,14 @@ if __name__ == "__main__":
     # Create the lightning module
     model_type = resnet50
     use_pretrained = True
+    lr = 5e-3
+    lr_min = 1e-4
     litvgg16 = LitVGG16(
         num_epochs=num_epochs,
         model_type = model_type,
         use_pretrained = use_pretrained,
-        lr = 5e-3,
-        lr_min = 1e-4
+        lr = lr,
+        lr_min = lr_min
     )
 
     # The training data path should contain one or more solo_ subdirectories
@@ -451,6 +453,8 @@ if __name__ == "__main__":
     wandb_logger = WandbLogger(project="tennis_court_cnn")
     wandb_logger.experiment.config["model_type"] = model_type
     wandb_logger.experiment.config["use_pretrained"] = use_pretrained
+    wandb_logger.experiment.config["lr"] = lr
+    wandb_logger.experiment.config["lr_min"] = lr_min
 
     # Define a checkpoint callback for saving the model
     checkpoint_callback = ModelCheckpoint(
