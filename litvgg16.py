@@ -499,7 +499,7 @@ if __name__ == "__main__":
     num_epochs = int(args.num_epochs)
 
     # Create the lightning module
-    model_type = resnet50
+    model_type = resnet18
     use_pretrained = False
     lr = 1e-3
     lr_min = 1e-4
@@ -541,7 +541,7 @@ if __name__ == "__main__":
     print(f"Finished splitting dataset into train/val in {time.time() - start_time} seconds")
 
     train_dataset_wrapped = TennisCourtDatasetWrapper(train_dataset, transform=transform)
-    val_dataset_wrapped = TennisCourtDatasetWrapper(val_dataset, transform=transform)
+    val_dataset_wrapped = TennisCourtDatasetWrapper(val_dataset, transform=A.Compose([]))
 
     # Create the train and validation dataloaders
     train_loader = utils.data.DataLoader(
