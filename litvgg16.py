@@ -466,8 +466,8 @@ if __name__ == "__main__":
     num_epochs = int(args.num_epochs)
 
     # Create the lightning module
-    model_type = resnet18
-    use_pretrained = False
+    model_type = resnet50
+    use_pretrained = True
     lr = 1e-3
     lr_min = 1e-5
     litvgg16 = LitVGG16(
