@@ -474,8 +474,8 @@ if __name__ == "__main__":
     num_epochs = int(args.num_epochs)
 
     # Create the lightning module
-    model_type = resnet18
-    use_pretrained = False
+    model_type = "vgg16"
+    use_pretrained = True
     lr = 1e-3
     lr_min = 1e-5
     litvgg16 = LitVGG16(
@@ -517,13 +517,13 @@ if __name__ == "__main__":
     # Time how long the next function call takes
     start_time = time.time()
     # TEMP: use full dataset for training
-    train_dataset, val_dataset = train_test_split(dataset, test_size=0.01, random_state=42)
+    train_dataset, val_dataset = train_test_split(dataset, test_size=0.2, random_state=42)
     print(f"Finished splitting dataset into train/val in {time.time() - start_time} seconds")
 
     # TEMP: use test dataset as validation dataset
-    val_dataset = TennisCourtDataset(
-        data_paths=test_solo_dirs, 
-    )
+    # val_dataset = TennisCourtDataset(
+    #     data_paths=test_solo_dirs, 
+    # )
 
     train_dataset_wrapped = TennisCourtDatasetWrapper(train_dataset, transform=transform)
     val_dataset_wrapped = TennisCourtDatasetWrapper(val_dataset, transform=A.Compose([]))
