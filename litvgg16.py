@@ -268,10 +268,10 @@ class LitVGG16(pl.LightningModule):
             self.continuous_output = nn.Sequential(
                 nn.Linear(25088, 4096),
                 nn.ReLU(inplace=True),
-                nn.Dropout(p=0.5, inplace=False),
+                #nn.Dropout(p=0.5, inplace=False),
                 nn.Linear(4096, 4096),
                 nn.ReLU(inplace=True),
-                nn.Dropout(p=0.5, inplace=False),
+                #nn.Dropout(p=0.5, inplace=False),
                 nn.Linear(4096, num_out_features)
             )
 
@@ -454,6 +454,13 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
+        "test_data_path", 
+        default="/Users/tleyden/Projects/SwingvisionClone/TennisCourtSyntheticDatasets/test",  # missing corners
+        nargs='?',
+        help="Path to the test data directory"
+    )
+
+    parser.add_argument(
         "num_epochs", 
         default=50,
         nargs='?',
@@ -463,11 +470,12 @@ if __name__ == "__main__":
     # Parse cli args
     args = parser.parse_args()
     train_val_data_path = args.train_val_data_path
+    test_data_path = args.test_data_path
     num_epochs = int(args.num_epochs)
 
     # Create the lightning module
-    model_type = resnet50
-    use_pretrained = True
+    model_type = resnet18
+    use_pretrained = False
     lr = 1e-3
     lr_min = 1e-5
     litvgg16 = LitVGG16(
@@ -482,6 +490,11 @@ if __name__ == "__main__":
     train_solo_dirs = [os.path.join(train_val_data_path, d) for d in os.listdir(train_val_data_path) if d.startswith("solo_")]
     if len(train_solo_dirs) == 0:
         raise Exception(f"Expected to find one or more solo_ subdirectories in {train_val_data_path}")
+
+    test_solo_dirs = [os.path.join(test_data_path, d) for d in os.listdir(test_data_path) if d.startswith("solo_")]
+    if len(test_solo_dirs) == 0:
+        raise Exception(f"Expected to find one or more solo_ subdirectories in {test_data_path}")
+
 
     # Define the augmentations
     # NOTE: none of these change the geometry of the image, because that would change the ground truth keypoint locations
@@ -503,8 +516,14 @@ if __name__ == "__main__":
     print("Splitting dataset into train/val..")
     # Time how long the next function call takes
     start_time = time.time()
-    train_dataset, val_dataset = train_test_split(dataset, test_size=0.2, random_state=42)
+    # TEMP: use full dataset for training
+    train_dataset, val_dataset = train_test_split(dataset, test_size=0.01, random_state=42)
     print(f"Finished splitting dataset into train/val in {time.time() - start_time} seconds")
+
+    # TEMP: use test dataset as validation dataset
+    val_dataset = TennisCourtDataset(
+        data_paths=test_solo_dirs, 
+    )
 
     train_dataset_wrapped = TennisCourtDatasetWrapper(train_dataset, transform=transform)
     val_dataset_wrapped = TennisCourtDatasetWrapper(val_dataset, transform=A.Compose([]))
