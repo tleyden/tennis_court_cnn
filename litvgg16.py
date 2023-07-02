@@ -517,13 +517,13 @@ if __name__ == "__main__":
     # Time how long the next function call takes
     start_time = time.time()
     # TEMP: use full dataset for training
-    train_dataset, val_dataset = train_test_split(dataset, test_size=0.2, random_state=42)
+    train_dataset, val_dataset = train_test_split(dataset, test_size=0.01, random_state=42)
     print(f"Finished splitting dataset into train/val in {time.time() - start_time} seconds")
 
     # TEMP: use test dataset as validation dataset
-    # val_dataset = TennisCourtDataset(
-    #     data_paths=test_solo_dirs, 
-    # )
+    val_dataset = TennisCourtDataset(
+        data_paths=test_solo_dirs, 
+    )
 
     train_dataset_wrapped = TennisCourtDatasetWrapper(train_dataset, transform=transform)
     val_dataset_wrapped = TennisCourtDatasetWrapper(val_dataset, transform=A.Compose([]))
