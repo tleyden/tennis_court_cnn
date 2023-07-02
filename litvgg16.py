@@ -187,10 +187,9 @@ class TennisCourtDatasetWrapper(torch.utils.data.Dataset):
 
 class TennisCourtDataset(torch.utils.data.Dataset):
 
-    def __init__(self, data_paths: List[str], transform=None):
+    def __init__(self, data_paths: List[str]):
         
         self.solo_frames = []
-        self.transform = transform
 
         # Preload all frames to allow for random access
         print("Preloading frames...")
@@ -502,7 +501,7 @@ if __name__ == "__main__":
     model_type = resnet18
     use_pretrained = False
     lr = 1e-3
-    lr_min = 1e-4
+    lr_min = 1e-5
     litvgg16 = LitVGG16(
         num_epochs=num_epochs,
         model_type = model_type,
@@ -531,7 +530,6 @@ if __name__ == "__main__":
 
     dataset = TennisCourtDataset(
         data_paths=train_solo_dirs, 
-        # transform=transform
     )
     
     print("Splitting dataset into train/val..")
