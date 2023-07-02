@@ -38,7 +38,7 @@ class TennisCourtImageHelper:
         pass
 
     @staticmethod
-    def imagepath2tensor(data_path_root: str, image_path: str, rescale_to: tuple[int, int], transform) -> tuple[Tensor, tuple[int, int]]:
+    def imagepath2tensor(data_path_root: str, image_path: str, rescale_to: tuple[int, int]) -> tuple[Tensor, tuple[int, int]]:
 
         # Load the image
         image_fq_path = os.path.join(data_path_root, image_path)
@@ -63,37 +63,6 @@ class TennisCourtImageHelper:
 
         return resized_image, (width, height)
 
-        # # By default OpenCV uses BGR color space for color images,
-        # # so we need to convert the image to RGB color space.
-        # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-
-        # image = Image.open(image_fq_path)
-        # width, height = image.size
-
-        # # Convert the image from RGBA (alpha channel) to RGB
-        # image = image.convert('RGB')
-
-        # # Resize image to 224x224
-        # resized_image = image.resize(rescale_to, Image.LANCZOS)
-
-        # # Convert the image to a tensor and return it as the unmodified image for display purposes
-        # img_tensor_no_agumentation = torchvision.transforms.ToTensor()(resized_image)
-
-        # # # Apply any additional transformations
-        # # if transform is not None:
-        # #     resized_image_np = np.array(resized_image)
-        # #     resized_image_np = transform(image=resized_image_np)["image"]
-
-        # # Convert the image to a tensor
-        # img_tensor = torchvision.transforms.ToTensor()(resized_image)
-
-        # # TODO: pass in a flag and only normalize if the flag is set
-        # # Normalize the image on the pretrained model;s mean and std
-        # img_tensor_normalized = torchvision.transforms.Normalize(
-        #     mean=[0.485, 0.456, 0.406],
-        #     std=[0.229, 0.224, 0.225])(img_tensor)
-
-        # return img_tensor_normalized, img_tensor_no_agumentation, (width, height)
     
     @staticmethod
     def rescale_keypoint_coordinates(keypoints: List[tuple[float, float]], orig_size: tuple[int, int], rescaled_size: tuple[int, int]) -> List:
@@ -218,8 +187,7 @@ class TennisCourtDataset(torch.utils.data.Dataset):
         resized_image, img_size = TennisCourtImageHelper.imagepath2tensor(
             data_path, 
             capture_img_file_path, 
-            TennisCourtImageHelper.img_rescale_size, 
-            self.transform
+            TennisCourtImageHelper.img_rescale_size
         )
 
         # Get a reference to the keypoint annotations
@@ -498,8 +466,8 @@ if __name__ == "__main__":
     num_epochs = int(args.num_epochs)
 
     # Create the lightning module
-    model_type = resnet50
-    use_pretrained = True
+    model_type = resnet18
+    use_pretrained = False
     lr = 1e-3
     lr_min = 1e-5
     litvgg16 = LitVGG16(
