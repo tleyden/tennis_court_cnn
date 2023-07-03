@@ -268,10 +268,8 @@ class LitVGG16(pl.LightningModule):
             self.continuous_output = nn.Sequential(
                 nn.Linear(25088, 4096),
                 nn.ReLU(inplace=True),
-                #nn.Dropout(p=0.5, inplace=False),
                 nn.Linear(4096, 4096),
                 nn.ReLU(inplace=True),
-                #nn.Dropout(p=0.5, inplace=False),
                 nn.Linear(4096, num_out_features)
             )
 
